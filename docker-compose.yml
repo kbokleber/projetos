@@ -1,20 +1,15 @@
-# App + Postgres no mesmo stack (um único recurso no Coolify).
+# App + Postgres no mesmo stack (Coolify Docker Compose).
 #
 # Coolify:
-#   1. Crie um Project (ex.: "Projetos")
-#   2. New Resource → Docker Compose (neste project)
-#   3. Arquivo: docker-compose.yml
-#   4. Serviço público: app · Porta: 3000
-#   5. Environment Variables (abaixo)
+#   - Build Pack: Docker Compose
+#   - Serviço do domínio: app
+#   - Porta do domínio: 3000
 #
-# Variáveis no Coolify:
+# Variáveis:
+#   DATABASE_URL=postgresql://projetos:projetos@postgres:5432/sistema_projetos
 #   AUTH_SECRET=...
 #   NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
 #   API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
-#   DATABASE_URL=postgresql://projetos:projetos@postgres:5432/sistema_projetos
-#
-# Local:
-#   docker compose up --build
 
 services:
   postgres:
@@ -33,7 +28,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
-    # Garante o alias DNS "postgres" na rede do compose
     networks:
       default:
         aliases:
@@ -52,17 +46,25 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      # Host = nome do serviço (mesma rede do compose)
       DATABASE_URL: ${DATABASE_URL:-postgresql://projetos:projetos@postgres:5432/sistema_projetos}
       AUTH_SECRET: ${AUTH_SECRET:-change-me-in-coolify-use-openssl-rand}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
-    # Coolify faz o proxy; expose basta para o roteamento interno
+    # Só expose — o Coolify/Traefik faz o proxy. NÃO publique 3000 no host.
     expose:
       - "3000"
-    # Útil só em dev local (comente no Coolify se a porta 3000 do host conflitar)
-    ports:
-      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
     networks:
       - default
 
