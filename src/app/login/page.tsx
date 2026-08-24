@@ -48,10 +48,12 @@ export default async function LoginPage({
           </Link>
         </div>
 
-        <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Credenciais de dev</p>
-          <p>admin@example.com / admin123</p>
-        </div>
+        {process.env.NODE_ENV !== "production" && (
+          <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">Credenciais de dev</p>
+            <p>admin@example.com / admin123</p>
+          </div>
+        )}
 
         <Button asChild variant="ghost" size="sm" className="mt-3 w-full">
           <Link href="/">Voltar</Link>

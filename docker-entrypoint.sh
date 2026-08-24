@@ -23,5 +23,12 @@ until NODE_PATH=/app/node_modules node node_modules/prisma/build/index.js migrat
   sleep 3
 done
 
+# Cria o primeiro admin se o banco estiver vazio (não apaga dados existentes)
+if [ -f scripts/bootstrap-admin.ts ]; then
+  echo "[entrypoint] Verificando usuário admin inicial..."
+  NODE_PATH=/app/node_modules node node_modules/tsx/dist/cli.mjs scripts/bootstrap-admin.ts || \
+    echo "[entrypoint] Aviso: bootstrap-admin falhou (pode rodar manualmente depois)."
+fi
+
 echo "[entrypoint] Iniciando Next.js..."
 exec node server.js
