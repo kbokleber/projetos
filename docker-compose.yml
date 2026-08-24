@@ -1,12 +1,13 @@
 # Compose: app + Postgres (dev local e Coolify Docker Compose).
 #
-# Coolify: Build Pack = Docker Compose, arquivo = docker-compose.yml
-# DATABASE_URL (opção B):
+# Coolify: Build Pack = Docker Compose
+# - Serviço público: app
+# - Porta: 3000
+# DATABASE_URL:
 #   postgresql://projetos:projetos@postgres:5432/sistema_projetos
 #
-# Uso local:
-#   docker compose up --build
-#   http://localhost:3000
+# NEXTAUTH_URL / API_ALLOWED_ORIGINS:
+#   https://projetos.kbosolucoes.com.br
 
 services:
   postgres:
@@ -16,8 +17,6 @@ services:
       POSTGRES_USER: projetos
       POSTGRES_PASSWORD: projetos
       POSTGRES_DB: sistema_projetos
-    # Sem ports no host — evita conflito com outro Postgres na VPS.
-    # Rede interna: postgres:5432
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -26,8 +25,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-    networks:
-      - app-network
 
   app:
     build:
@@ -39,18 +36,18 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
       DATABASE_URL: ${DATABASE_URL:-postgresql://projetos:projetos@postgres:5432/sistema_projetos}
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET é obrigatório}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL é obrigatório}
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
+    # Coolify conecta via proxy na porta do container.
+    # Não fixe rede customizada — o Coolify precisa anexar a rede dele.
+    expose:
+      - "3000"
     ports:
       - "3000:3000"
-    networks:
-      - app-network
 
 volumes:
   postgres-data:
-
-networks:
-  app-network:
-    driver: bridge
