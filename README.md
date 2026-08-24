@@ -87,17 +87,32 @@ O projeto usa **PostgreSQL** e vem com `Dockerfile` multi-stage + `docker-compos
 | `NEXTAUTH_URL` | `https://seu-dominio.com` |
 | `API_ALLOWED_ORIGINS` | `https://seu-dominio.com` |
 
-### Deploy no Coolify (VPS)
+### Deploy no Coolify (VPS) — recomendado
 
-**Recomendado:** use o Coolify com **Dockerfile** + um banco **PostgreSQL** separado (New Resource → Database → PostgreSQL). Não use o `docker-compose.yml` se a porta 5432 da VPS já estiver ocupada.
+Use **Dockerfile + PostgreSQL separado** (mais estável no Coolify):
 
-1. Apunte o GitHub: `kbokleber/projetos`
-2. Build Pack: **Dockerfile**
-3. Crie um PostgreSQL no Coolify e copie a connection string para `DATABASE_URL`
-4. Preencha `AUTH_SECRET`, `NEXTAUTH_URL` e `API_ALLOWED_ORIGINS`
-5. Deploy — no boot o entrypoint roda `prisma migrate deploy`
+1. **New Resource → Database → PostgreSQL**
+   - Anote usuário, senha, banco e a **Internal URL**
+2. **New Resource → Application → GitHub** (`kbokleber/projetos`)
+   - Build Pack: **Dockerfile** (não Docker Compose)
+3. Em Environment Variables:
 
-Se preferir o `docker-compose.yml` completo (app + Postgres), o Postgres **não** publica a porta 5432 no host (só rede interna). Assim não conflita com outro Postgres na VPS.
+```env
+DATABASE_URL=<Internal URL do Postgres do Coolify>
+AUTH_SECRET=oFMkloKl0fvfpSR2EhpCAwH698TE49PNEqm/w1e7GH0=
+NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
+API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
+```
+
+4. No Coolify, **vincule** o banco à application (Connect / Link database), se a UI oferecer
+5. Domínio: `projetos.kbosolucoes.com.br` · porta do container: **3000**
+6. Deploy
+
+O host em `DATABASE_URL` **não** pode ser `postgres` — use o host da Internal URL do Coolify (ex.: `xxxxx` ou `postgresql-xxxxx`).
+
+### Opção B (Docker Compose)
+
+Só funciona se **os dois** serviços (`app` e `postgres`) estiverem Running no mesmo stack. Se aparecer `Can't reach database server at postgres:5432`, o Compose do Coolify não está resolvendo o serviço — prefira a opção A acima.
 
 Opcional (seed inicial): após o primeiro deploy, rode no terminal do container:
 ```bash
