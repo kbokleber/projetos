@@ -18,8 +18,11 @@ services:
       POSTGRES_USER: projetos
       POSTGRES_PASSWORD: projetos
       POSTGRES_DB: sistema_projetos
-    ports:
-      - "5432:5432"
+    # Não publica 5432 no host — evita conflito com Postgres já rodando na VPS/Coolify.
+    # A app acessa via rede interna: postgres:5432
+    # Para acessar do host em dev local, descomente:
+    # ports:
+    #   - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

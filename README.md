@@ -89,12 +89,15 @@ O projeto usa **PostgreSQL** e vem com `Dockerfile` multi-stage + `docker-compos
 
 ### Deploy no Coolify (VPS)
 
-1. Crie um repositório no GitHub e faça push deste projeto
-2. No Coolify: **New Resource → Application → GitHub**
-3. Build Pack: **Dockerfile** (detecta o `Dockerfile` na raiz)
-4. Adicione um serviço **PostgreSQL** no mesmo projeto e copie a connection string para `DATABASE_URL`
-5. Preencha as variáveis acima e faça o deploy
-6. No primeiro boot o entrypoint roda `prisma migrate deploy` automaticamente
+**Recomendado:** use o Coolify com **Dockerfile** + um banco **PostgreSQL** separado (New Resource → Database → PostgreSQL). Não use o `docker-compose.yml` se a porta 5432 da VPS já estiver ocupada.
+
+1. Apunte o GitHub: `kbokleber/projetos`
+2. Build Pack: **Dockerfile**
+3. Crie um PostgreSQL no Coolify e copie a connection string para `DATABASE_URL`
+4. Preencha `AUTH_SECRET`, `NEXTAUTH_URL` e `API_ALLOWED_ORIGINS`
+5. Deploy — no boot o entrypoint roda `prisma migrate deploy`
+
+Se preferir o `docker-compose.yml` completo (app + Postgres), o Postgres **não** publica a porta 5432 no host (só rede interna). Assim não conflita com outro Postgres na VPS.
 
 Opcional (seed inicial): após o primeiro deploy, rode no terminal do container:
 ```bash
