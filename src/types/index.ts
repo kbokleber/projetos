@@ -1,0 +1,30 @@
+export type {
+  User,
+  Workspace,
+  WorkspaceMember,
+  Project,
+  ProjectMember,
+  Board,
+  BoardColumn,
+  Task,
+  TaskAssignee,
+  Label,
+  TaskLabel,
+  Checklist,
+  ChecklistItem,
+  Comment,
+  Attachment,
+  Activity,
+  ApiToken,
+  Webhook,
+  ServiceAccount,
+} from "@/generated/prisma/client";
+
+export {
+  GlobalRole,
+  WorkspaceRole,
+  ProjectStatus,
+  ProjectRole,
+  TaskPriority,
+  ActorType,
+} from "@/generated/prisma/client";

@@ -1,0 +1,517 @@
+// Prisma schema — Sistema de Controle de Projetos
+// Compatível com SQLite (dev) e PostgreSQL (produção)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums (mapeados como strings no SQLite) ─────────────────────────────────
+
+enum GlobalRole {
+  ADMIN
+  USER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActorType {
+  USER
+  API
+  WEBHOOK
+  SYSTEM
+}
+
+// ─── User & Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String?
+  avatarUrl    String?
+  role         GlobalRole @default(USER)
+  active       Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspaceMembers WorkspaceMember[]
+  projectMembers   ProjectMember[]
+  taskAssignees    TaskAssignee[]
+  comments         Comment[]
+  activities       Activity[]
+  attachments      Attachment[]
+  checklistsDone   ChecklistItem[]   @relation("ChecklistItemCompletedBy")
+  createdProjects  Project[]         @relation("ProjectCreator")
+  createdTasks     Task[]            @relation("TaskCreator")
+  apiTokens        ApiToken[]
+  passwordResets   PasswordResetToken[]
+
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Workspace ───────────────────────────────────────────────────────────────
+
+model Workspace {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        WorkspaceMember[]
+  projects       Project[]
+  activities     Activity[]
+  apiTokens      ApiToken[]
+  webhooks       Webhook[]
+  serviceAccounts ServiceAccount[]
+
+  @@index([slug])
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+// ─── Project ─────────────────────────────────────────────────────────────────
+
+model Project {
+  id          String        @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  status      ProjectStatus @default(ACTIVE)
+
+  startDate DateTime?
+  dueDate   DateTime?
+
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  archivedAt DateTime?
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User            @relation("ProjectCreator", fields: [createdBy], references: [id])
+  members   ProjectMember[]
+  boards    Board[]
+  labels    Label[]
+  tasks     Task[]
+  activities Activity[]
+
+  @@index([workspaceId])
+  @@index([createdBy])
+  @@index([status])
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectRole @default(MEMBER)
+
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+// ─── Board & Columns ─────────────────────────────────────────────────────────
+
+model Board {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns BoardColumn[]
+  tasks   Task[]
+
+  @@index([projectId])
+}
+
+model BoardColumn {
+  id       String  @id @default(cuid())
+  boardId  String
+  name     String
+  position Float
+  color    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([boardId])
+  @@index([boardId, position])
+}
+
+// ─── Task ────────────────────────────────────────────────────────────────────
+
+model Task {
+  id        String @id @default(cuid())
+  boardId   String
+  columnId  String
+  projectId String
+
+  title       String
+  description String?
+  position    Float
+  priority    TaskPriority @default(MEDIUM)
+
+  startDate      DateTime?
+  dueDate        DateTime?
+  estimatedHours Float?
+
+  // Integrações externas
+  externalId     String?
+  externalSource String?
+
+  createdBy   String
+  completedAt DateTime?
+  archivedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board    Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column   BoardColumn @relation(fields: [columnId], references: [id])
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator  User   @relation("TaskCreator", fields: [createdBy], references: [id])
+
+  assignees   TaskAssignee[]
+  labels      TaskLabel[]
+  checklists  Checklist[]
+  comments    Comment[]
+  attachments Attachment[]
+  activities  Activity[]
+
+  @@index([projectId])
+  @@index([boardId])
+  @@index([columnId])
+  @@index([columnId, position])
+  @@index([dueDate])
+  @@index([priority])
+  @@index([createdBy])
+  @@index([externalSource, externalId])
+}
+
+model TaskAssignee {
+  id         String   @id @default(cuid())
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+// ─── Labels ──────────────────────────────────────────────────────────────────
+
+model Label {
+  id        String @id @default(cuid())
+  projectId String
+  name      String
+  color     String
+
+  createdAt DateTime @default(now())
+
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   TaskLabel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model TaskLabel {
+  id      String @id @default(cuid())
+  taskId  String
+  labelId String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, labelId])
+  @@index([taskId])
+  @@index([labelId])
+}
+
+// ─── Checklist ───────────────────────────────────────────────────────────────
+
+model Checklist {
+  id       String @id @default(cuid())
+  taskId   String
+  title    String
+  position Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task  Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  items ChecklistItem[]
+
+  @@index([taskId])
+  @@index([taskId, position])
+}
+
+model ChecklistItem {
+  id          String  @id @default(cuid())
+  checklistId String
+  description String
+  completed   Boolean @default(false)
+  position    Float
+
+  completedAt DateTime?
+  completedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  completer User?     @relation("ChecklistItemCompletedBy", fields: [completedBy], references: [id])
+
+  @@index([checklistId])
+  @@index([checklistId, position])
+}
+
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+model Comment {
+  id      String  @id @default(cuid())
+  taskId  String
+  userId  String
+  content String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+model Attachment {
+  id       String @id @default(cuid())
+  taskId   String
+  userId   String
+  fileName String
+  fileUrl  String
+  mimeType String
+  size     Int
+
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+// ─── Activity / Audit ────────────────────────────────────────────────────────
+
+model Activity {
+  id          String    @id @default(cuid())
+  workspaceId String?
+  projectId   String?
+  taskId      String?
+  userId      String?
+
+  actorType ActorType @default(USER)
+  actorId   String?
+
+  action     String
+  entityType String
+  entityId   String
+  metadata   String? // JSON serializado (compatível SQLite/PostgreSQL)
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task      Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+// ─── API / Integrações (preparação para fases futuras) ───────────────────────
+
+model ServiceAccount {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  apiTokens ApiToken[]
+
+  @@index([workspaceId])
+}
+
+model ApiToken {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  userId           String?
+  serviceAccountId String?
+  name             String
+  tokenHash        String    @unique
+  prefix           String
+  scopes           String // JSON array de scopes
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  serviceAccount ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([prefix])
+  @@index([tokenHash])
+}
+
+model Webhook {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  url         String
+  secret      String
+  events      String // JSON array de eventos
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([workspaceId])
+  @@index([active])
+}
+
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  webhookId     String
+  eventId       String
+  event         String
+  payload       String // JSON
+  status        String    @default("PENDING") // PENDING | SUCCESS | FAILED
+  statusCode    Int?
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+  errorMessage  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([status])
+  @@index([nextAttemptAt])
+}
+
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  key          String
+  workspaceId  String
+  requestHash  String
+  responseCode Int
+  responseBody String
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@unique([workspaceId, key])
+  @@index([expiresAt])
+}

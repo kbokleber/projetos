@@ -1,0 +1,50 @@
+# Compose para desenvolvimento local com Postgres.
+# Em produção no Coolify, você define o serviço via UI e aponta
+# o Coolify para o Dockerfile na raiz do repositório.
+#
+# Uso local:
+#   docker compose up --build
+#   Abre em http://localhost:3000
+#
+# O banco persiste em ./docker-data/postgres.
+# Para resetar: docker compose down -v
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sistema-projetos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: projetos
+      POSTGRES_PASSWORD: projetos
+      POSTGRES_DB: sistema_projetos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sistema-projetos-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://projetos:projetos@postgres:5432/sistema_projetos
+      AUTH_SECRET: ${AUTH_SECRET:-please-change-me-in-production-32-chars-min}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:

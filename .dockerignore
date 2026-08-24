@@ -1,0 +1,45 @@
+# Git / IDE
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Dependências e build
+# NÃO ignorar node_modules: precisamos dele dentro do builder stage
+# para copiar dependências do Prisma CLI para o runner.
+# .next/standalone já copia só o que o Next precisa.
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+
+# Ambientes e banco local
+.env
+.env.local
+.env.*.local
+prisma/dev.db
+prisma/dev.db-journal
+
+# Prisma client gerado (é reconstruído no build)
+src/generated/prisma
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Misc
+coverage
+.vercel
+.claude
+.agents
+.windsurf
+skills-lock.json
+docker-compose*.yml
+Dockerfile
+.dockerignore
+README.md
+docker-data

@@ -1,36 +1,158 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Controle de Projetos
 
-## Getting Started
+Aplicação web de gerenciamento de projetos e tarefas com quadros Kanban (inspirada no Trello).
 
-First, run the development server:
+## Stack
+
+- **Next.js** (App Router) + TypeScript
+- **Tailwind CSS** + componentes no estilo shadcn/ui
+- **Prisma ORM**
+- **SQLite** (desenvolvimento) / **PostgreSQL** (produção)
+
+## Estrutura
+
+```text
+src/
+├── app/                 # Rotas Next.js
+├── components/          # UI e componentes de domínio
+├── features/            # Módulos por domínio (auth, projects, ...)
+├── hooks/
+├── lib/                 # Prisma, utils, constants, errors
+├── repositories/        # Acesso a dados (próximas fases)
+├── schemas/             # Validação Zod (próximas fases)
+├── services/            # Regras de negócio (próximas fases)
+├── types/
+└── generated/prisma/    # Cliente Prisma gerado
+```
+
+## Pré-requisitos
+
+- Node.js 20+
+- npm
+
+## Configuração
+
+```bash
+cp .env.example .env
+npm install
+```
+
+## Banco de dados
+
+### Migration
+
+```bash
+npm run db:migrate
+```
+
+### Gerar cliente Prisma
+
+```bash
+npm run db:generate
+```
+
+### Seed (dados de desenvolvimento)
+
+```bash
+npm run db:seed
+```
+
+Credenciais do seed (apenas local):
+
+| Usuário | Senha |
+|---------|-------|
+| `admin@example.com` | `admin123` |
+| `maria@example.com` | `password123` |
+| `joao@example.com` | `password123` |
+| `ana@example.com` | `password123` |
+
+## Executar
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Produção (Docker / Coolify)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+O projeto usa **PostgreSQL** e vem com `Dockerfile` multi-stage + `docker-compose.yml`.
 
-## Learn More
+### Variáveis obrigatórias no Coolify
 
-To learn more about Next.js, take a look at the following resources:
+| Variável | Exemplo |
+|----------|---------|
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/sistema_projetos` |
+| `AUTH_SECRET` | gere com `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | `https://seu-dominio.com` |
+| `API_ALLOWED_ORIGINS` | `https://seu-dominio.com` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Deploy no Coolify (VPS)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Crie um repositório no GitHub e faça push deste projeto
+2. No Coolify: **New Resource → Application → GitHub**
+3. Build Pack: **Dockerfile** (detecta o `Dockerfile` na raiz)
+4. Adicione um serviço **PostgreSQL** no mesmo projeto e copie a connection string para `DATABASE_URL`
+5. Preencha as variáveis acima e faça o deploy
+6. No primeiro boot o entrypoint roda `prisma migrate deploy` automaticamente
 
-## Deploy on Vercel
+Opcional (seed inicial): após o primeiro deploy, rode no terminal do container:
+```bash
+npx tsx prisma/seed.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Dev local com Docker
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Sobe Postgres + app
+docker compose up --build
+
+# Ou só o Postgres (e roda a app com npm run dev)
+docker compose up postgres -d
+cp .env.example .env
+# ajuste AUTH_SECRET no .env
+npm install
+npm run db:migrate:deploy
+npm run db:seed
+npm run dev
+```
+
+Abra [http://localhost:3000](http://localhost:3000).
+
+## Scripts úteis
+
+| Script | Descrição |
+|--------|-----------|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Verificação TypeScript |
+| `npm run db:migrate` | Aplicar migrations (dev) |
+| `npm run db:migrate:deploy` | Aplicar migrations (prod) |
+| `npm run db:seed` | Popular banco |
+| `npm run db:studio` | Prisma Studio |
+| `npm run api:verify` | Smoke ponta-a-ponta da API `/api/v1/*` |
+| `npm run web:verify` | Smoke das páginas autenticadas |
+
+## API Pública (v1)
+
+`/api/v1/` aceita token `Bearer pk_live_…` (gerado em `/settings/api`).
+
+Endpoints:
+- `GET/POST /api/v1/projects` · `GET/PATCH/DELETE /api/v1/projects/{id}`
+- `GET/POST /api/v1/projects/{id}/boards` · `GET /api/v1/boards/{id}`
+- `GET/POST /api/v1/boards/{id}/columns` · `PATCH /api/v1/columns/{id}`
+- `GET/POST /api/v1/tasks` · `GET/PATCH/DELETE /api/v1/tasks/{id}`
+- `POST /api/v1/tasks/{id}/move` (move coluna/posição)
+- `POST /api/v1/tasks/{id}/assignees` · `DELETE /api/v1/tasks/{id}/assignees/{userId}`
+- `GET/POST /api/v1/tasks/{id}/comments`
+
+Garantias:
+- Resposta no contrato `{ success: true, data }` ou `{ success: false, error: { code, message } }`
+- Rate limit: 100 req/min por token (em memória) com headers `X-RateLimit-*`
+- `Idempotency-Key` em POST/PATCH/DELETE (TTL 24h)
+- Suporte a `externalId`/`externalSource` em tasks
+- Webhooks (em `/settings/webhooks`) com assinatura HMAC SHA-256
+
+Documentação interativa em `/api/docs` (Swagger UI).
+Especificação em `/api/openapi.json`.
