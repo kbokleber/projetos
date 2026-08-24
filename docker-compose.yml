@@ -1,53 +1,56 @@
-# Compose para desenvolvimento local com Postgres.
-# Em produção no Coolify, você define o serviço via UI e aponta
-# o Coolify para o Dockerfile na raiz do repositório.
+# Compose: app + Postgres (dev local e Coolify Docker Compose).
+#
+# Coolify: Build Pack = Docker Compose, arquivo = docker-compose.yml
+# DATABASE_URL (opção B):
+#   postgresql://projetos:projetos@postgres:5432/sistema_projetos
 #
 # Uso local:
 #   docker compose up --build
-#   Abre em http://localhost:3000
-#
-# O banco persiste em ./docker-data/postgres.
-# Para resetar: docker compose down -v
+#   http://localhost:3000
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: sistema-projetos-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: projetos
       POSTGRES_PASSWORD: projetos
       POSTGRES_DB: sistema_projetos
-    # Não publica 5432 no host — evita conflito com Postgres já rodando na VPS/Coolify.
-    # A app acessa via rede interna: postgres:5432
-    # Para acessar do host em dev local, descomente:
-    # ports:
-    #   - "5433:5432"
+    # Sem ports no host — evita conflito com outro Postgres na VPS.
+    # Rede interna: postgres:5432
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
+    networks:
+      - app-network
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sistema-projetos-app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://projetos:projetos@postgres:5432/sistema_projetos
-      AUTH_SECRET: ${AUTH_SECRET:-please-change-me-in-production-32-chars-min}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://projetos:projetos@postgres:5432/sistema_projetos}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET é obrigatório}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL é obrigatório}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
     ports:
       - "3000:3000"
+    networks:
+      - app-network
 
 volumes:
   postgres-data:
+
+networks:
+  app-network:
+    driver: bridge
