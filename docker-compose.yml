@@ -1,17 +1,25 @@
-# Compose: app + Postgres (dev local e Coolify Docker Compose).
+# App + Postgres no mesmo stack (um único recurso no Coolify).
 #
-# Coolify: Build Pack = Docker Compose
-# - Serviço público: app
-# - Porta: 3000
-# DATABASE_URL:
-#   postgresql://projetos:projetos@postgres:5432/sistema_projetos
+# Coolify:
+#   1. Crie um Project (ex.: "Projetos")
+#   2. New Resource → Docker Compose (neste project)
+#   3. Arquivo: docker-compose.yml
+#   4. Serviço público: app · Porta: 3000
+#   5. Environment Variables (abaixo)
 #
-# NEXTAUTH_URL / API_ALLOWED_ORIGINS:
-#   https://projetos.kbosolucoes.com.br
+# Variáveis no Coolify:
+#   AUTH_SECRET=...
+#   NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
+#   API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
+#   DATABASE_URL=postgresql://projetos:projetos@postgres:5432/sistema_projetos
+#
+# Local:
+#   docker compose up --build
 
 services:
   postgres:
     image: postgres:16-alpine
+    hostname: postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: projetos
@@ -23,13 +31,19 @@ services:
       test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 12
+      start_period: 15s
+    # Garante o alias DNS "postgres" na rede do compose
+    networks:
+      default:
+        aliases:
+          - postgres
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    hostname: app
     restart: unless-stopped
     depends_on:
       postgres:
@@ -38,16 +52,19 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      # Host = nome do serviço (mesma rede do compose)
       DATABASE_URL: ${DATABASE_URL:-postgresql://projetos:projetos@postgres:5432/sistema_projetos}
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET é obrigatório}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL é obrigatório}
-      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
-    # Coolify conecta via proxy na porta do container.
-    # Não fixe rede customizada — o Coolify precisa anexar a rede dele.
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-coolify-use-openssl-rand}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
+    # Coolify faz o proxy; expose basta para o roteamento interno
     expose:
       - "3000"
+    # Útil só em dev local (comente no Coolify se a porta 3000 do host conflitar)
     ports:
       - "3000:3000"
+    networks:
+      - default
 
 volumes:
   postgres-data:

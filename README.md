@@ -87,32 +87,35 @@ O projeto usa **PostgreSQL** e vem com `Dockerfile` multi-stage + `docker-compos
 | `NEXTAUTH_URL` | `https://seu-dominio.com` |
 | `API_ALLOWED_ORIGINS` | `https://seu-dominio.com` |
 
-### Deploy no Coolify (VPS) — recomendado
+### Deploy no Coolify — app + banco no mesmo Project
 
-Use **Dockerfile + PostgreSQL separado** (mais estável no Coolify):
+#### Caminho recomendado (Docker Compose = 2 containers no mesmo recurso)
 
-1. **New Resource → Database → PostgreSQL**
-   - Anote usuário, senha, banco e a **Internal URL**
-2. **New Resource → Application → GitHub** (`kbokleber/projetos`)
-   - Build Pack: **Dockerfile** (não Docker Compose)
-3. Em Environment Variables:
+1. No Coolify: **Projects → New Project** (ex.: `Projetos`)
+2. Dentro do project: **New Resource → Docker Compose**
+3. Git: `kbokleber/projetos` · arquivo: `docker-compose.yml`
+4. Domínio: `projetos.kbosolucoes.com.br`
+5. **Serviço público** = `app` · **Porta** = `3000`
+6. Environment Variables:
 
 ```env
-DATABASE_URL=<Internal URL do Postgres do Coolify>
+DATABASE_URL=postgresql://projetos:projetos@postgres:5432/sistema_projetos
 AUTH_SECRET=oFMkloKl0fvfpSR2EhpCAwH698TE49PNEqm/w1e7GH0=
 NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
 API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
 ```
 
-4. No Coolify, **vincule** o banco à application (Connect / Link database), se a UI oferecer
-5. Domínio: `projetos.kbosolucoes.com.br` · porta do container: **3000**
-6. Deploy
+7. Deploy — devem aparecer **dois** containers: `postgres` e `app`
+8. Confira nos logs do `app`: `Iniciando Next.js` / `Ready`
 
-O host em `DATABASE_URL` **não** pode ser `postgres` — use o host da Internal URL do Coolify (ex.: `xxxxx` ou `postgresql-xxxxx`).
+> Se ainda aparecer `Can't reach ... postgres:5432`, o Coolify não subiu o serviço `postgres`. Nos detalhes do recurso Compose, confirme que **ambos** os services estão enabled/Running.
 
-### Opção B (Docker Compose)
+#### Alternativa (2 recursos no mesmo Project)
 
-Só funciona se **os dois** serviços (`app` e `postgres`) estiverem Running no mesmo stack. Se aparecer `Can't reach database server at postgres:5432`, o Compose do Coolify não está resolvendo o serviço — prefira a opção A acima.
+1. No mesmo Project: **Database → PostgreSQL**
+2. No mesmo Project: **Application → Dockerfile**
+3. Copie a **Internal URL** do Postgres para `DATABASE_URL` da app
+4. Porta da app: `3000` · domínio: `projetos.kbosolucoes.com.br`
 
 Opcional (seed inicial): após o primeiro deploy, rode no terminal do container:
 ```bash
