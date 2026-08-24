@@ -1,5 +1,6 @@
 #!/bin/sh
 # Aplica migrations do Prisma antes de iniciar o Next.js.
+# Espera o Postgres ficar acessível (útil no Coolify / compose).
 set -e
 
 if [ -z "$DATABASE_URL" ]; then
@@ -7,10 +8,20 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
-echo "[entrypoint] Aplicando migrations do Prisma..."
-# O Prisma CLI precisa resolver `@prisma/config` e `effect` que estão em
-# /app/node_modules. NODE_PATH força o Node a procurar módulos nesses paths.
-NODE_PATH=/app/node_modules node node_modules/prisma/build/index.js migrate deploy
+echo "[entrypoint] Aguardando banco de dados..."
+MAX_ATTEMPTS=30
+ATTEMPT=1
+until NODE_PATH=/app/node_modules node node_modules/prisma/build/index.js migrate deploy; do
+  if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+    echo "[entrypoint] Banco inacessível após ${MAX_ATTEMPTS} tentativas."
+    echo "[entrypoint] Verifique DATABASE_URL. No Coolify, use a Internal URL do Postgres,"
+    echo "[entrypoint] não o host 'postgres' (só existe no docker-compose)."
+    exit 1
+  fi
+  echo "[entrypoint] Tentativa ${ATTEMPT}/${MAX_ATTEMPTS} falhou — aguardando 3s..."
+  ATTEMPT=$((ATTEMPT + 1))
+  sleep 3
+done
 
 echo "[entrypoint] Iniciando Next.js..."
 exec node server.js
