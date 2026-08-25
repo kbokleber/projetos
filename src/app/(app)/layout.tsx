@@ -1,10 +1,11 @@
-import { auth } from "@/lib/auth";
+import { auth, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/auth/actions";
 import { authService } from "@/services/auth";
+import { AppError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 export default async function DashboardLayout({
@@ -17,7 +18,16 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const workspaces = await authService.getActiveWorkspaces(session.user.id);
+  let workspaces;
+  try {
+    workspaces = await authService.getActiveWorkspaces(session.user.id);
+  } catch (err) {
+    // Sessão JWT com userId antigo (ex.: após reset do banco)
+    if (err instanceof AppError && err.code === "UNAUTHORIZED") {
+      await signOut({ redirectTo: "/login?session=expired" });
+    }
+    throw err;
+  }
   const activeWorkspace = workspaces[0];
 
   const hdrs = await headers();

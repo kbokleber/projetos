@@ -132,11 +132,24 @@ export const authService = {
 
   /**
    * Garante que o usuário pertença a pelo menos um workspace.
+   * - Se a sessão aponta para um userId inexistente (banco resetado): UNAUTHORIZED
    * - Se já for membro: não faz nada
    * - Se existir workspace: adiciona como MEMBER
    * - Se não existir: cria "Workspace Principal" e coloca como OWNER
    */
   async ensureWorkspaceMembership(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new AppError(
+        "UNAUTHORIZED",
+        "Sessão inválida. Faça login novamente.",
+        401,
+      );
+    }
+
     const existing = await prisma.workspaceMember.findFirst({
       where: { userId },
       select: { id: true, workspaceId: true },

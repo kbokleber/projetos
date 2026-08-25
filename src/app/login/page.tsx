@@ -3,7 +3,11 @@ import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/features/auth/login-form";
 import { APP_NAME } from "@/lib/constants";
 
-type SearchParams = Promise<{ registered?: string; reset?: string }>;
+type SearchParams = Promise<{
+  registered?: string;
+  reset?: string;
+  session?: string;
+}>;
 
 export default async function LoginPage({
   searchParams,
@@ -13,6 +17,7 @@ export default async function LoginPage({
   const params = await searchParams;
   const justRegistered = params.registered === "1";
   const justReset = params.reset === "1";
+  const sessionExpired = params.session === "expired";
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
@@ -26,6 +31,11 @@ export default async function LoginPage({
           </h1>
         </div>
 
+        {sessionExpired && (
+          <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+            Sua sessão expirou ou o banco foi recriado. Entre novamente.
+          </p>
+        )}
         {justRegistered && (
           <p className="mb-4 rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">
             Conta criada com sucesso. Faça login para continuar.

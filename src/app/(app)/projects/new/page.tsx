@@ -4,13 +4,21 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ProjectForm } from "@/features/projects/project-form";
 import { authService } from "@/services/auth";
+import { AppError } from "@/lib/errors";
 
 export default async function NewProjectPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   // Garante vínculo com workspace (usuários criados pelo admin antes do fix)
-  await authService.ensureWorkspaceMembership(session.user.id);
+  try {
+    await authService.ensureWorkspaceMembership(session.user.id);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "UNAUTHORIZED") {
+      redirect("/login?session=expired");
+    }
+    throw err;
+  }
 
   const workspaces = await prisma.workspace.findMany({
     where: { members: { some: { userId: session.user.id } } },
