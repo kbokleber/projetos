@@ -15,7 +15,7 @@ export default async function NewProjectPage() {
     await authService.ensureWorkspaceMembership(session.user.id);
   } catch (err) {
     if (err instanceof AppError && err.code === "UNAUTHORIZED") {
-      redirect("/login?session=expired");
+      redirect("/api/session/reset");
     }
     throw err;
   }

@@ -201,7 +201,13 @@ export const projectService = {
   },
 
   async archive(actor: { userId: string | null; actorType: "USER" | "API" }, projectId: string) {
-    return this.update(actor, projectId, { archived: true });
+    const updated = await this.update(actor, projectId, { archived: true });
+    // Esconde as tarefas do projeto arquivado em "Minhas tarefas" e listas
+    await prisma.task.updateMany({
+      where: { projectId, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+    return updated;
   },
 
   async getAccessibleProject(projectId: string, workspaceId: string): Promise<Project> {

@@ -11,6 +11,7 @@ export default async function MyTasksPage() {
   const tasks = await prisma.task.findMany({
     where: {
       archivedAt: null,
+      project: { archivedAt: null },
       assignees: { some: { userId: session.user.id } },
     },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],

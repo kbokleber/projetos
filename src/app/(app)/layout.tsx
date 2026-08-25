@@ -1,4 +1,4 @@
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -22,9 +22,9 @@ export default async function DashboardLayout({
   try {
     workspaces = await authService.getActiveWorkspaces(session.user.id);
   } catch (err) {
-    // Sessão JWT com userId antigo (ex.: após reset do banco)
+    // Sessão JWT com userId antigo — limpa cookie via Route Handler
     if (err instanceof AppError && err.code === "UNAUTHORIZED") {
-      await signOut({ redirectTo: "/login?session=expired" });
+      redirect("/api/session/reset");
     }
     throw err;
   }
