@@ -156,7 +156,13 @@ export const projectService = {
       const member = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId, userId: actor.userId } },
       });
-      if (!member || member.role === "VIEWER") {
+      const isWsMember = !member
+        ? !!(await prisma.workspaceMember.findFirst({
+            where: { workspaceId: existing.workspaceId, userId: actor.userId },
+            select: { id: true },
+          }))
+        : false;
+      if ((!member || member.role === "VIEWER") && !isWsMember) {
         throw new AppError("FORBIDDEN", "Sem permissão para editar o projeto.", 403);
       }
     }

@@ -142,11 +142,15 @@ export async function archiveProjectAction(projectId: string) {
       { userId: user.id, actorType: "USER" },
       projectId,
     );
-    revalidatePath("/projects");
-    revalidatePath(`/projects/${projectId}`);
   } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
     console.error("[archiveProject]", err);
+    throw new AppError("INTERNAL_ERROR", "Não foi possível arquivar o projeto.", 500);
   }
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
   redirect("/projects");
 }
 

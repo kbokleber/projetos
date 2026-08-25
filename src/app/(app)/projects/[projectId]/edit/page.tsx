@@ -3,10 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ProjectForm } from "@/features/projects/project-form";
-import {
-  archiveProjectAction,
-  unarchiveProjectAction,
-} from "@/features/projects/actions";
+import { unarchiveProjectAction } from "@/features/projects/actions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
@@ -30,7 +27,15 @@ export default async function EditProjectPage({
 
   if (!project) notFound();
   const myMembership = project.members[0];
-  if (!myMembership || myMembership.role === "VIEWER") {
+  const isWsMember = !myMembership
+    ? !!(await prisma.workspaceMember.findFirst({
+        where: { workspaceId: project.workspace.id, userId: session.user.id },
+        select: { id: true },
+      }))
+    : false;
+  const canEdit =
+    (!!myMembership && myMembership.role !== "VIEWER") || isWsMember;
+  if (!canEdit) {
     redirect(`/projects/${projectId}`);
   }
 
@@ -90,8 +95,8 @@ export default async function EditProjectPage({
           dueDate: project.dueDate?.toISOString() ?? null,
         }}
         workspaces={[{ id: project.workspace.id, name: project.workspace.name }]}
-        onArchive={archiveProjectAction.bind(null, projectId)}
-        archiveLabel={isArchived ? "Arquivado" : "Arquivar"}
+        showArchive={!isArchived}
+        archiveLabel="Arquivar projeto"
       />
 
       <Link

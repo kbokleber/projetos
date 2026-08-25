@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TASK_PRIORITIES } from "@/lib/constants";
 import {
   createCommentAction,
   moveTaskAction,
   updateTaskDetailsAction,
+  deleteTaskAction,
   type TaskFormState,
 } from "@/features/tasks/actions";
 import { dateTimeBR } from "@/lib/format-date";
@@ -43,6 +45,7 @@ export function TaskDetailsPanel(props: {
 }) {
   const {
     taskId,
+    projectId,
     canEdit,
     columns,
     currentColumnId,
@@ -282,25 +285,71 @@ export function TaskDetailsPanel(props: {
         )}
       </section>
 
-      {canEdit && <DeleteTaskButton taskId={taskId} />}
+      {canEdit && (
+        <DeleteTaskButton taskId={taskId} projectId={projectId} />
+      )}
     </div>
   );
 }
 
-function DeleteTaskButton({ taskId }: { taskId: string }) {
+function DeleteTaskButton({
+  taskId,
+  projectId,
+}: {
+  taskId: string;
+  projectId: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
   return (
-    <form
-      action={async () => {
-        if (!confirm("Arquivar esta tarefa? Ela deixará de aparecer no board.")) return;
-        const { deleteTaskAction } = await import("@/features/tasks/actions");
-        await deleteTaskAction(taskId);
-      }}
-      className="flex justify-end"
-    >
-      <Button type="submit" variant="ghost" size="sm">
+    <div className="flex flex-col items-end gap-2">
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        onClick={() => {
+          if (
+            !confirm(
+              "Arquivar esta tarefa? Ela deixará de aparecer no board.",
+            )
+          ) {
+            return;
+          }
+          setError(null);
+          startTransition(async () => {
+            try {
+              await deleteTaskAction(taskId);
+              router.push(`/projects/${projectId}`);
+              router.refresh();
+            } catch (err) {
+              if (
+                typeof err === "object" &&
+                err !== null &&
+                "digest" in err &&
+                String((err as { digest?: string }).digest).startsWith(
+                  "NEXT_REDIRECT",
+                )
+              ) {
+                router.push(`/projects/${projectId}`);
+                router.refresh();
+                return;
+              }
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : "Não foi possível arquivar a tarefa.",
+              );
+            }
+          });
+        }}
+      >
         <Trash2 className="size-3.5" />
-        Arquivar tarefa
+        {pending ? "Arquivando..." : "Arquivar tarefa"}
       </Button>
-    </form>
+    </div>
   );
 }

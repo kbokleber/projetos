@@ -335,8 +335,11 @@ export async function deleteTaskAction(taskId: string) {
     where: { id: taskId },
     select: { id: true, projectId: true },
   });
-  if (!task) return;
+  if (!task) {
+    throw new AppError("NOT_FOUND", "Tarefa não encontrada.", 404);
+  }
 
+  await assertProjectEditAccess(user.id, task.projectId);
   await taskService.delete({ userId: user.id, actorType: "USER" }, taskId);
 
   revalidatePath(`/projects/${task.projectId}`);

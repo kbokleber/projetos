@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PROJECT_STATUSES } from "@/lib/constants";
 import {
   createProjectAction,
   updateProjectAction,
+  archiveProjectAction,
   type FormState,
 } from "@/features/projects/actions";
 import { Save, Trash2 } from "lucide-react";
@@ -38,7 +39,8 @@ export type ProjectFormProps = {
     dueDate: string | null;
   };
   workspaces: Array<{ id: string; name: string }>;
-  onArchive?: () => void | Promise<void>;
+  /** Se true, mostra botão de arquivar (somente em modo edit). */
+  showArchive?: boolean;
   archiveLabel?: string;
 };
 
@@ -46,6 +48,8 @@ export function ProjectForm(props: ProjectFormProps) {
   const router = useRouter();
   const initial = props.initialValues;
   const [color, setColor] = useState<string | null>(initial?.color ?? null);
+  const [archiving, startArchive] = useTransition();
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const bound =
     props.mode === "create"
@@ -178,7 +182,7 @@ export function ProjectForm(props: ProjectFormProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <div className="flex gap-2">
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || archiving}>
             <Save className="size-4" />
             {pending
               ? "Salvando..."
@@ -194,15 +198,55 @@ export function ProjectForm(props: ProjectFormProps) {
             Cancelar
           </Button>
         </div>
-        {props.mode === "edit" && props.onArchive && (
-          <form action={props.onArchive}>
-            <Button type="submit" variant="destructive" size="sm">
-              <Trash2 className="size-4" />
-              {props.archiveLabel ?? "Arquivar"}
-            </Button>
-          </form>
+        {props.mode === "edit" && props.showArchive && props.projectId && (
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={archiving || pending}
+            onClick={() => {
+              if (
+                !confirm(
+                  "Arquivar este projeto? Ele deixará de aparecer na lista.",
+                )
+              ) {
+                return;
+              }
+              setArchiveError(null);
+              startArchive(async () => {
+                try {
+                  await archiveProjectAction(props.projectId!);
+                } catch (err) {
+                  const msg =
+                    err instanceof Error
+                      ? err.message
+                      : "Não foi possível arquivar.";
+                  // redirect() do Next lança NEXT_REDIRECT — ignora
+                  if (
+                    typeof err === "object" &&
+                    err !== null &&
+                    "digest" in err &&
+                    String((err as { digest?: string }).digest).startsWith(
+                      "NEXT_REDIRECT",
+                    )
+                  ) {
+                    return;
+                  }
+                  setArchiveError(msg);
+                }
+              });
+            }}
+          >
+            <Trash2 className="size-4" />
+            {archiving
+              ? "Arquivando..."
+              : (props.archiveLabel ?? "Arquivar")}
+          </Button>
         )}
       </div>
+      {archiveError && (
+        <p className="text-sm text-destructive">{archiveError}</p>
+      )}
     </form>
   );
 }

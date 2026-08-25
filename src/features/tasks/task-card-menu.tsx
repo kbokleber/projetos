@@ -3,7 +3,13 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MoreHorizontal, ArrowRight, Check, ExternalLink } from "lucide-react";
+import {
+  MoreHorizontal,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { moveTaskAction } from "@/features/tasks/actions";
+import { moveTaskAction, deleteTaskAction } from "@/features/tasks/actions";
 
 type Column = { id: string; name: string };
 
@@ -38,6 +44,33 @@ export function TaskCardMenu({
     fd.set("columnId", columnId);
     startTransition(async () => {
       await moveTaskAction(taskId, fd);
+      router.refresh();
+    });
+  };
+
+  const handleArchive = () => {
+    if (
+      !confirm("Arquivar esta tarefa? Ela deixará de aparecer no board.")
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await deleteTaskAction(taskId);
+      } catch (err) {
+        if (
+          typeof err === "object" &&
+          err !== null &&
+          "digest" in err &&
+          String((err as { digest?: string }).digest).startsWith(
+            "NEXT_REDIRECT",
+          )
+        ) {
+          router.refresh();
+          return;
+        }
+        console.error("[TaskCardMenu] archive failed:", err);
+      }
       router.refresh();
     });
   };
@@ -92,6 +125,17 @@ export function TaskCardMenu({
             <ExternalLink className="size-3.5" />
             Abrir detalhes
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={pending}
+          className="text-destructive focus:text-destructive"
+          onSelect={(e) => {
+            e.preventDefault();
+            handleArchive();
+          }}
+        >
+          <Trash2 className="size-3.5" />
+          Arquivar tarefa
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
