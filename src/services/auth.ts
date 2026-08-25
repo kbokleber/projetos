@@ -122,6 +122,7 @@ export const authService = {
   },
 
   async getActiveWorkspaces(userId: string) {
+    await this.ensureWorkspaceMembership(userId);
     return prisma.workspace.findMany({
       where: { members: { some: { userId } } },
       orderBy: { createdAt: "asc" },
@@ -130,9 +131,51 @@ export const authService = {
   },
 
   /**
-   * Cria um novo usuário (sem workspace) para uso interno/admin.
-   * Não faz signup de workspace — o admin adiciona o usuário em workspaces
-   * depois pela página de membros do projeto.
+   * Garante que o usuário pertença a pelo menos um workspace.
+   * - Se já for membro: não faz nada
+   * - Se existir workspace: adiciona como MEMBER
+   * - Se não existir: cria "Workspace Principal" e coloca como OWNER
+   */
+  async ensureWorkspaceMembership(userId: string) {
+    const existing = await prisma.workspaceMember.findFirst({
+      where: { userId },
+      select: { id: true, workspaceId: true },
+    });
+    if (existing) return existing;
+
+    const workspace = await prisma.workspace.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+
+    if (!workspace) {
+      const created = await prisma.workspace.create({
+        data: {
+          name: "Workspace Principal",
+          slug: "principal",
+          description: "Workspace padrão do sistema",
+          members: {
+            create: { userId, role: "OWNER" },
+          },
+        },
+        select: { id: true },
+      });
+      return { id: "new", workspaceId: created.id };
+    }
+
+    const membership = await prisma.workspaceMember.create({
+      data: {
+        workspaceId: workspace.id,
+        userId,
+        role: "MEMBER",
+      },
+      select: { id: true, workspaceId: true },
+    });
+    return membership;
+  },
+
+  /**
+   * Cria um novo usuário e adiciona ao workspace padrão.
    */
   async createUserByAdmin(input: {
     name: string;
@@ -154,6 +197,7 @@ export const authService = {
       email,
       passwordHash,
     });
+    await this.ensureWorkspaceMembership(user.id);
     return user;
   },
 };

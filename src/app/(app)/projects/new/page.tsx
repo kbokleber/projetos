@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ProjectForm } from "@/features/projects/project-form";
+import { authService } from "@/services/auth";
 
 export default async function NewProjectPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+
+  // Garante vínculo com workspace (usuários criados pelo admin antes do fix)
+  await authService.ensureWorkspaceMembership(session.user.id);
 
   const workspaces = await prisma.workspace.findMany({
     where: { members: { some: { userId: session.user.id } } },
@@ -17,8 +21,12 @@ export default async function NewProjectPage() {
   if (workspaces.length === 0) {
     return (
       <div className="mx-auto max-w-xl">
+        <h1 className="mb-3 text-2xl font-semibold tracking-tight">
+          Sem workspace
+        </h1>
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-6 text-sm text-muted-foreground">
-          Você ainda não pertence a nenhum workspace.
+          Não foi possível criar ou associar um workspace. Tente novamente ou
+          peça ao administrador.
         </div>
         <Link
           href="/projects"
