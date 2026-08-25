@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CreateWebhookForm } from "@/features/webhooks/create-form";
 import { WebhookList } from "@/features/webhooks/webhook-list";
 import { deleteWebhookAction, toggleWebhookAction } from "@/features/webhooks/actions";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +13,20 @@ export default async function SettingsWebhooksPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) {
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm">
-        Usuário não pertence a nenhum workspace.
+        Usuário não pertence a nenhum workspace.{" "}
+        <Link href="/settings/workspaces" className="text-primary underline">
+          Criar workspace
+        </Link>
       </div>
     );
   }
 
   const webhooks = await prisma.webhook.findMany({
-    where: { workspaceId: member.workspaceId },
+    where: { workspaceId: active.id },
     orderBy: { createdAt: "desc" },
   });
 
@@ -70,8 +71,9 @@ export default async function SettingsWebhooksPage() {
         </nav>
         <h1 className="text-2xl font-semibold tracking-tight">Webhooks</h1>
         <p className="text-sm text-muted-foreground">
-          Receba eventos do sistema em um endpoint HTTP. Cada entrega é
-          assinada com HMAC SHA-256 no header <code className="font-mono">X-Webhook-Signature</code>.
+          Webhooks de <strong>{active.name}</strong>. Cada entrega é assinada
+          com HMAC SHA-256 no header{" "}
+          <code className="font-mono">X-Webhook-Signature</code>.
         </p>
       </div>
 

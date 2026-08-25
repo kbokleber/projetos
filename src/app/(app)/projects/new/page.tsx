@@ -1,30 +1,26 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { ProjectForm } from "@/features/projects/project-form";
-import { authService } from "@/services/auth";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { AppError } from "@/lib/errors";
 
 export default async function NewProjectPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  // Garante vínculo com workspace (usuários criados pelo admin antes do fix)
+  let workspaces;
+  let active;
   try {
-    await authService.ensureWorkspaceMembership(session.user.id);
+    const resolved = await resolveActiveWorkspace(session.user.id);
+    workspaces = resolved.workspaces;
+    active = resolved.active;
   } catch (err) {
     if (err instanceof AppError && err.code === "UNAUTHORIZED") {
       redirect("/api/session/reset");
     }
     throw err;
   }
-
-  const workspaces = await prisma.workspace.findMany({
-    where: { members: { some: { userId: session.user.id } } },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true },
-  });
 
   if (workspaces.length === 0) {
     return (
@@ -33,15 +29,11 @@ export default async function NewProjectPage() {
           Sem workspace
         </h1>
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-6 text-sm text-muted-foreground">
-          Não foi possível criar ou associar um workspace. Tente novamente ou
-          peça ao administrador.
+          Crie um workspace antes de adicionar projetos.{" "}
+          <Link href="/settings/workspaces" className="text-primary underline">
+            Ir para Workspaces
+          </Link>
         </div>
-        <Link
-          href="/projects"
-          className="mt-3 inline-block text-sm text-primary underline"
-        >
-          Voltar para Projetos
-        </Link>
       </div>
     );
   }
@@ -64,7 +56,20 @@ export default async function NewProjectPage() {
         </p>
       </div>
 
-      <ProjectForm mode="create" workspaces={workspaces} />
+      <ProjectForm
+        mode="create"
+        workspaces={workspaces}
+        initialValues={{
+          workspaceId: active?.id ?? workspaces[0].id,
+          name: "",
+          description: null,
+          color: null,
+          icon: null,
+          status: "ACTIVE",
+          startDate: null,
+          dueDate: null,
+        }}
+      />
     </div>
   );
 }

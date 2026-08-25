@@ -3,15 +3,21 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { dateBR } from "@/lib/format-date";
 import { prisma } from "@/lib/prisma";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 
 export default async function MyTasksPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  const { active } = await resolveActiveWorkspace(session.user.id);
+
   const tasks = await prisma.task.findMany({
     where: {
       archivedAt: null,
-      project: { archivedAt: null },
+      project: {
+        archivedAt: null,
+        ...(active ? { workspaceId: active.id } : {}),
+      },
       assignees: { some: { userId: session.user.id } },
     },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],

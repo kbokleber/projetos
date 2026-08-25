@@ -5,6 +5,7 @@ import { ActivityFeed } from "@/features/dashboard/activity-feed";
 import { SummaryCards } from "@/features/dashboard/summary-cards";
 import { ActivityOriginChart } from "@/features/dashboard/activity-origin";
 import { RecentApiTasks } from "@/features/dashboard/recent-api-tasks";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -13,27 +14,25 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const member = await (
-    await import("@/lib/prisma")
-  ).prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const { active } = await resolveActiveWorkspace(session.user.id);
 
-  if (!member) {
+  if (!active) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm">
-        Usuário não pertence a nenhum workspace.
+        Usuário não pertence a nenhum workspace.{" "}
+        <Link href="/settings/workspaces" className="text-primary underline">
+          Criar workspace
+        </Link>
       </div>
     );
   }
 
   const [summary, recentActivity, activityByOrigin, recentApiTasks] =
     await Promise.all([
-      dashboardService.summary(member.workspaceId),
-      dashboardService.recentActivity(member.workspaceId, 15),
-      dashboardService.activityByOrigin(member.workspaceId),
-      dashboardService.recentApiTasks(member.workspaceId, 8),
+      dashboardService.summary(active.id),
+      dashboardService.recentActivity(active.id, 15),
+      dashboardService.activityByOrigin(active.id),
+      dashboardService.recentApiTasks(active.id, 8),
     ]);
 
   return (
@@ -43,9 +42,9 @@ export default async function DashboardPage() {
           Acompanhamento
         </h1>
         <p className="text-sm text-muted-foreground">
-          Visão executiva do seu workspace. Aqui você vê o que está
-          acontecendo, incluindo tudo o que a <strong>IA</strong> fez
-          via API.
+          Visão executiva de <strong>{active.name}</strong>. Aqui você vê o que
+          está acontecendo, incluindo tudo o que a <strong>IA</strong> fez via
+          API.
         </p>
       </div>
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { CreateTokenForm } from "@/features/api-tokens/create-form";
 import { TokenList } from "@/features/api-tokens/token-list";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -11,22 +12,22 @@ export default async function SettingsApiPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const { active } = await resolveActiveWorkspace(session.user.id);
 
-  if (!member) {
+  if (!active) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm">
-        Usuário não pertence a nenhum workspace.
+        Usuário não pertence a nenhum workspace.{" "}
+        <Link href="/settings/workspaces" className="text-primary underline">
+          Criar workspace
+        </Link>
       </div>
     );
   }
 
   const tokens = await prisma.apiToken.findMany({
     where: {
-      workspaceId: member.workspaceId,
+      workspaceId: active.id,
       revokedAt: null,
     },
     orderBy: { createdAt: "desc" },
@@ -53,8 +54,8 @@ export default async function SettingsApiPage() {
         </nav>
         <h1 className="text-2xl font-semibold tracking-tight">API · Tokens</h1>
         <p className="text-sm text-muted-foreground">
-          Crie tokens para integrações externas consumirem a API pública. O
-          token completo é mostrado uma única vez.
+          Tokens de <strong>{active.name}</strong>. O token completo é mostrado
+          uma única vez.
         </p>
       </div>
 

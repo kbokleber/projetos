@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateToken } from "@/lib/api/auth";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { z } from "zod";
 
 export type CreateTokenResult =
@@ -21,7 +22,6 @@ export async function createApiTokenAction(
   const schema = z.object({
     name: z.string().min(1).max(80),
     scopes: z.array(z.string()).min(1, "Escolha pelo menos um escopo"),
-    workspaceId: z.string().optional(),
     expiresInDays: z.coerce.number().int().min(1).max(365).optional(),
   });
 
@@ -29,7 +29,6 @@ export async function createApiTokenAction(
   const parsed = schema.safeParse({
     name: formData.get("name"),
     scopes,
-    workspaceId: formData.get("workspaceId") || undefined,
     expiresInDays: formData.get("expiresInDays") || undefined,
   });
 
@@ -40,12 +39,8 @@ export async function createApiTokenAction(
     };
   }
 
-  // Identifica o workspace do usuário
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) return { ok: false, error: "Usuário sem workspace." };
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) return { ok: false, error: "Usuário sem workspace." };
 
   const { token, prefix, tokenHash } = generateToken();
 
@@ -55,7 +50,7 @@ export async function createApiTokenAction(
 
   const created = await prisma.apiToken.create({
     data: {
-      workspaceId: member.workspaceId,
+      workspaceId: active.id,
       userId: session.user.id,
       name: parsed.data.name,
       tokenHash,
@@ -65,6 +60,7 @@ export async function createApiTokenAction(
     },
   });
 
+  revalidatePath("/settings/api");
   return { ok: true, token, tokenId: created.id };
 }
 
@@ -75,17 +71,13 @@ export async function revokeApiTokenAction(formData: FormData) {
   const id = formData.get("tokenId");
   if (typeof id !== "string") return;
 
-  // Só permite revogar tokens do próprio workspace do usuário
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) return;
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) return;
 
   await prisma.apiToken.updateMany({
     where: {
       id,
-      workspaceId: member.workspaceId,
+      workspaceId: active.id,
       revokedAt: null,
     },
     data: { revokedAt: new Date() },

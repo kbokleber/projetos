@@ -4,9 +4,10 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/auth/actions";
-import { authService } from "@/services/auth";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { AppError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { WorkspaceSwitcher } from "@/features/workspaces/workspace-switcher";
 
 export default async function DashboardLayout({
   children,
@@ -19,8 +20,11 @@ export default async function DashboardLayout({
   }
 
   let workspaces;
+  let activeWorkspace;
   try {
-    workspaces = await authService.getActiveWorkspaces(session.user.id);
+    const resolved = await resolveActiveWorkspace(session.user.id);
+    workspaces = resolved.workspaces;
+    activeWorkspace = resolved.active;
   } catch (err) {
     // Sessão JWT com userId antigo — limpa cookie via Route Handler
     if (err instanceof AppError && err.code === "UNAUTHORIZED") {
@@ -28,7 +32,6 @@ export default async function DashboardLayout({
     }
     throw err;
   }
-  const activeWorkspace = workspaces[0];
 
   const hdrs = await headers();
   const pathname = hdrs.get("x-pathname") ?? "";
@@ -73,17 +76,14 @@ export default async function DashboardLayout({
             Administração
           </p>
           {navItem("/settings/users", "Usuários")}
+          {navItem("/settings/workspaces", "Workspaces")}
         </nav>
         <div className="border-t border-sidebar-border p-3 text-xs">
-          <p className="font-medium text-foreground">Workspace</p>
-          <p className="text-muted-foreground">
-            {activeWorkspace?.name ?? "—"}
-          </p>
-          {workspaces.length > 1 && (
-            <p className="mt-1 text-muted-foreground">
-              +{workspaces.length - 1} outro(s)
-            </p>
-          )}
+          <p className="font-medium text-foreground">Workspace ativo</p>
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeId={activeWorkspace?.id ?? null}
+          />
         </div>
         <form action={logoutAction} className="border-t border-sidebar-border p-3">
           <div className="mb-2 truncate text-xs">

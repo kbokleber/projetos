@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { webhookService } from "@/services/webhooks";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { z } from "zod";
 
 export async function createWebhookAction(
@@ -13,11 +14,8 @@ export async function createWebhookAction(
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) return { ok: false, error: "Usuário sem workspace." };
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) return { ok: false, error: "Usuário sem workspace." };
 
   const schema = z.object({
     name: z.string().min(1).max(80),
@@ -39,7 +37,7 @@ export async function createWebhookAction(
   const secret = webhookService.generateSecret();
   await prisma.webhook.create({
     data: {
-      workspaceId: member.workspaceId,
+      workspaceId: active.id,
       name: parsed.data.name,
       url: parsed.data.url,
       events: JSON.stringify(parsed.data.events),
@@ -58,14 +56,11 @@ export async function toggleWebhookAction(formData: FormData) {
   const id = formData.get("webhookId");
   if (typeof id !== "string") return;
 
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) return;
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) return;
 
   const webhooks = await prisma.webhook.findMany({
-    where: { id, workspaceId: member.workspaceId },
+    where: { id, workspaceId: active.id },
     take: 1,
   });
   if (webhooks.length === 0) return;
@@ -83,13 +78,10 @@ export async function deleteWebhookAction(formData: FormData) {
   const id = formData.get("webhookId");
   if (typeof id !== "string") return;
 
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!member) return;
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) return;
 
   await prisma.webhook.deleteMany({
-    where: { id, workspaceId: member.workspaceId },
+    where: { id, workspaceId: active.id },
   });
 }

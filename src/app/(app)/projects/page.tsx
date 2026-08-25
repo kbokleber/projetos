@@ -3,14 +3,28 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 
 export default async function ProjectsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card/50 p-6 text-sm text-muted-foreground">
+        Sem workspace.{" "}
+        <Link href="/settings/workspaces" className="text-primary underline">
+          Criar workspace
+        </Link>
+      </div>
+    );
+  }
+
   const projects = await prisma.project.findMany({
     where: {
       archivedAt: null,
+      workspaceId: active.id,
       OR: [
         { members: { some: { userId: session.user.id } } },
         {
@@ -35,7 +49,7 @@ export default async function ProjectsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projetos</h1>
           <p className="text-sm text-muted-foreground">
-            Seus workspaces e projetos.
+            Projetos de <strong>{active.name}</strong>.
           </p>
         </div>
         <Button asChild>
