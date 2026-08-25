@@ -10,6 +10,9 @@
 #   AUTH_SECRET=...
 #   NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
 #   API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
+#
+# Dev local (Next no host acessando Postgres):
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up postgres -d
 
 services:
   postgres:
@@ -22,9 +25,10 @@ services:
       POSTGRES_DB: sistema_projetos
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # Dev local (Next no host): descomente se precisar acessar o Postgres.
-    ports:
-      - "5432:5432"
+    # NÃO publique 5432 no host em produção — conflita com outros Postgres na VPS.
+    # O app acessa via rede interna: postgres:5432
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
       interval: 5s

@@ -1,0 +1,9 @@
+# Override só para desenvolvimento local (Next rodando no host).
+# Uso: docker compose -f docker-compose.yml -f docker-compose.local.yml up postgres -d
+#
+# Não use este arquivo no Coolify.
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
