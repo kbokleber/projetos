@@ -12,9 +12,14 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  pointerWithin,
+  rectIntersection,
+  MeasuringStrategy,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -64,6 +69,63 @@ const priorityColor: Record<string, string> = {
   URGENT: "bg-red-500/10 text-red-700",
 };
 
+function columnDroppableId(columnId: string) {
+  return `col:${columnId}`;
+}
+
+function parseColumnId(overId: UniqueIdentifier): string | null {
+  const id = String(overId);
+  return id.startsWith("col:") ? id.slice(4) : null;
+}
+
+/**
+ * Com muitas tarefas (ex.: Concluído com 80+), closestCorners sozinho
+ * "gruda" no card mais próximo e colunas vazias quase nunca recebem drop.
+ * Preferimos pointerWithin; se o ponteiro está numa coluna, usamos ela
+ * (ou a tarefa sob o ponteiro para ordenar).
+ */
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args);
+  if (pointerHits.length > 0) {
+    const overTask = pointerHits.find(
+      (c) => !String(c.id).startsWith("col:"),
+    );
+    if (overTask) return [overTask];
+
+    const overColumn = pointerHits.find((c) =>
+      String(c.id).startsWith("col:"),
+    );
+    if (overColumn) return [overColumn];
+    return pointerHits;
+  }
+
+  const intersections = rectIntersection(args);
+  if (intersections.length > 0) {
+    const overTask = intersections.find(
+      (c) => !String(c.id).startsWith("col:"),
+    );
+    if (overTask) return [overTask];
+    const overColumn = intersections.find((c) =>
+      String(c.id).startsWith("col:"),
+    );
+    if (overColumn) return [overColumn];
+    return intersections;
+  }
+
+  // Último recurso: só entre colunas (áreas grandes), não entre cards
+  const columnContainers = args.droppableContainers.filter((c) =>
+    String(c.id).startsWith("col:"),
+  );
+  if (columnContainers.length > 0) {
+    return closestCorners({
+      ...args,
+      droppableContainers: columnContainers,
+    });
+  }
+
+  return closestCorners(args);
+};
+
 function moveTaskInBoard(
   board: ColumnLite[],
   taskId: string,
@@ -92,22 +154,23 @@ function moveTaskInBoard(
 function resolveDropTarget(
   board: ColumnLite[],
   activeId: string,
-  overId: string,
+  overId: UniqueIdentifier,
 ): { toColId: string; toIndex: number } | null {
-  if (overId.startsWith("col:")) {
-    const toColId = overId.slice(4);
-    const col = board.find((c) => c.id === toColId);
+  const asColumn = parseColumnId(overId);
+  if (asColumn) {
+    const col = board.find((c) => c.id === asColumn);
     if (!col) return null;
     const already = col.tasks.findIndex((t) => t.id === activeId);
     return {
-      toColId,
+      toColId: asColumn,
       toIndex: already >= 0 ? already : col.tasks.length,
     };
   }
 
-  const toCol = board.find((c) => c.tasks.some((t) => t.id === overId));
+  const overTaskId = String(overId);
+  const toCol = board.find((c) => c.tasks.some((t) => t.id === overTaskId));
   if (!toCol) return null;
-  const overIndex = toCol.tasks.findIndex((t) => t.id === overId);
+  const overIndex = toCol.tasks.findIndex((t) => t.id === overTaskId);
   return {
     toColId: toCol.id,
     toIndex: overIndex < 0 ? toCol.tasks.length : overIndex,
@@ -141,7 +204,7 @@ export function KanbanBoard({
       activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
+      activationConstraint: { delay: 180, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -164,14 +227,14 @@ export function KanbanBoard({
     const { active, over } = e;
     if (!over || !canEdit) return;
     const activeIdStr = String(active.id);
-    const overIdStr = String(over.id);
-    const target = resolveDropTarget(itemsRef.current, activeIdStr, overIdStr);
+    const target = resolveDropTarget(itemsRef.current, activeIdStr, over.id);
     if (!target) return;
 
     const fromCol = itemsRef.current.find((c) =>
       c.tasks.some((t) => t.id === activeIdStr),
     );
     if (!fromCol) return;
+    // Só move entre colunas no over; reordenação na mesma fica para o end
     if (fromCol.id === target.toColId) return;
 
     setItems((prev) =>
@@ -188,9 +251,8 @@ export function KanbanBoard({
     }
 
     const activeIdStr = String(active.id);
-    const overIdStr = String(over.id);
     const board = itemsRef.current;
-    const target = resolveDropTarget(board, activeIdStr, overIdStr);
+    const target = resolveDropTarget(board, activeIdStr, over.id);
     if (!target) {
       setItems(columns);
       return;
@@ -234,7 +296,8 @@ export function KanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={kanbanCollisionDetection}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -243,7 +306,7 @@ export function KanbanBoard({
         setItems(columns);
       }}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
         {items.map((col) => (
           <KanbanColumn
             key={col.id}
@@ -300,19 +363,22 @@ function KanbanColumn({
   columns: Array<{ id: string; name: string }>;
   onMenuMove?: (taskId: string, columnId: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `col:${column.id}` });
+  const { setNodeRef, isOver } = useDroppable({
+    id: columnDroppableId(column.id),
+    data: { type: "column", columnId: column.id },
+  });
   const taskIds = column.tasks.map((t) => t.id);
 
   return (
     <section
-      ref={setNodeRef}
       data-column-id={column.id}
       className={cn(
         "flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/40 p-3 transition-colors",
+        "min-h-[min(70vh,640px)]",
         isOver && "ring-2 ring-primary/40 bg-muted/70",
       )}
     >
-      <header className="flex items-center justify-between">
+      <header className="flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2">
           {column.color && (
             <span
@@ -328,7 +394,11 @@ function KanbanColumn({
       </header>
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-[48px] flex-col gap-2">
+        {/* Área de drop alta: colunas vazias ou com poucos cards aceitam drop */}
+        <div
+          ref={setNodeRef}
+          className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+        >
           {column.tasks.map((t) => (
             <SortableTaskCard
               key={t.id}
@@ -340,11 +410,13 @@ function KanbanColumn({
             />
           ))}
           {canEdit && (
-            <QuickTaskButton
-              projectId={projectId}
-              boardId={boardId}
-              columnId={column.id}
-            />
+            <div className="mt-auto pt-1">
+              <QuickTaskButton
+                projectId={projectId}
+                boardId={boardId}
+                columnId={column.id}
+              />
+            </div>
           )}
         </div>
       </SortableContext>
@@ -375,6 +447,7 @@ function SortableTaskCard({
   } = useSortable({
     id: task.id,
     disabled: !canComplete,
+    data: { type: "task", columnId: task.columnId },
   });
 
   const style = {
@@ -384,7 +457,7 @@ function SortableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="shrink-0">
       <TaskCardContent
         projectId={projectId}
         task={task}
