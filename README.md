@@ -159,7 +159,21 @@ Abra [http://localhost:3000](http://localhost:3000).
 
 `/api/v1/` aceita token `Bearer pk_live_…` (gerado em `/settings/api`).
 
-Endpoints:
+### Workspaces e IAs
+1. `GET /api/v1/workspaces` — lista `id`, `name`, `slug`
+2. Ao criar projeto, envie o workspace alvo:
+   - `workspaceSlug` (recomendado), ex.: `"cleartech"`
+   - ou `workspace` (id, slug ou nome), ex.: `"Projeto Cleartech"`
+3. Sem esses campos, usa o workspace **padrão do token**
+
+Exemplo:
+```json
+POST /api/v1/projects
+{ "name": "Site institucional", "workspaceSlug": "cleartech" }
+```
+
+### Endpoints
+- `GET /api/v1/workspaces`
 - `GET/POST /api/v1/projects` · `GET/PATCH/DELETE /api/v1/projects/{id}`
 - `GET/POST /api/v1/projects/{id}/boards` · `GET /api/v1/boards/{id}`
 - `GET/POST /api/v1/boards/{id}/columns` · `PATCH /api/v1/columns/{id}`

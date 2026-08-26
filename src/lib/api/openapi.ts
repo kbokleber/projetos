@@ -5,13 +5,58 @@
 
 const server = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
+const API_GUIDE = `
+## Guia para integrações e IAs
+
+### Autenticação
+Envie o header: \`Authorization: Bearer pk_live_...\`  
+Token gerado em **/settings/api** (escopos necessários: \`projects:read\` / \`projects:write\`).
+
+### Workspaces (importante)
+Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em **qualquer workspace** do qual seja membro.
+
+**Sempre** especifique o workspace ao criar projetos, se a instrução mencionar um workspace (ex.: "Projeto Cleartech"):
+
+1. \`GET /workspaces\` — descubra \`id\`, \`name\` e \`slug\`
+2. \`POST /projects\` com um destes campos:
+   - \`workspaceSlug\` (recomendado) — ex.: \`"cleartech"\`
+   - \`workspace\` — id, slug **ou nome** — ex.: \`"Projeto Cleartech"\`
+   - \`workspaceId\` — CUID interno
+
+Se omitir esses campos, o projeto vai para o workspace padrão do token (pode ser o errado).
+
+### Exemplo: criar projeto no Cleartech
+\`\`\`http
+POST /projects
+Authorization: Bearer pk_live_...
+Content-Type: application/json
+
+{
+  "name": "Site institucional",
+  "workspaceSlug": "cleartech",
+  "description": "Projeto criado via API"
+}
+\`\`\`
+
+Equivalente:
+\`\`\`json
+{ "name": "Site institucional", "workspace": "Projeto Cleartech" }
+\`\`\`
+
+### Listar projetos de um workspace
+\`GET /projects?workspaceSlug=cleartech\`
+
+### Contrato de resposta
+- Sucesso: \`{ "success": true, "data": ... }\`
+- Erro: \`{ "success": false, "error": { "code": "...", "message": "..." } }\`
+`.trim();
+
 export const openapiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Sistema de Projetos — API Pública",
-    version: "1.0.0",
-    description:
-      "API pública para integrações externas consumirem e operarem projetos, tarefas, comentários e webhooks.",
+    version: "1.1.0",
+    description: API_GUIDE,
   },
   servers: [{ url: `${server}/api/v1`, description: "Servidor atual" }],
   components: {
@@ -103,14 +148,76 @@ export const openapiSpec = {
       CreateProject: {
         type: "object",
         required: ["name"],
+        description:
+          "Crie um projeto no workspace indicado. Se a instrução citar um workspace (nome ou slug), envie workspaceSlug ou workspace — não omita.",
         properties: {
-          name: { type: "string" },
-          description: { type: "string" },
-          color: { type: "string", description: "#RRGGBB" },
+          name: {
+            type: "string",
+            description: "Nome do projeto (não confundir com nome do workspace).",
+            example: "Site institucional",
+          },
+          workspaceSlug: {
+            type: "string",
+            description:
+              'Slug do workspace (recomendado). Obtenha em GET /workspaces. Ex.: "cleartech" para o workspace "Projeto Cleartech".',
+            example: "cleartech",
+          },
+          workspace: {
+            type: "string",
+            description:
+              'Atalho: id, slug ou nome do workspace. Ex.: "Projeto Cleartech" ou "cleartech".',
+            example: "Projeto Cleartech",
+          },
+          workspaceId: {
+            type: "string",
+            description: "ID interno do workspace (CUID). Alternativa ao slug.",
+          },
+          description: { type: "string", example: "Projeto criado via API / IA" },
+          color: { type: "string", description: "#RRGGBB", example: "#0ea5e9" },
           icon: { type: "string" },
-          status: { type: "string", enum: ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"] },
+          status: {
+            type: "string",
+            enum: ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"],
+            example: "ACTIVE",
+          },
           startDate: { type: "string", format: "date-time" },
           dueDate: { type: "string", format: "date-time" },
+        },
+        examples: {
+          comSlug: {
+            summary: "Criar no Cleartech (slug)",
+            value: {
+              name: "Site institucional",
+              workspaceSlug: "cleartech",
+              description: "Projeto no workspace Projeto Cleartech",
+              status: "ACTIVE",
+            },
+          },
+          comNome: {
+            summary: "Criar pelo nome do workspace",
+            value: {
+              name: "Site institucional",
+              workspace: "Projeto Cleartech",
+            },
+          },
+        },
+      },
+      Workspace: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "clxyz..." },
+          name: { type: "string", example: "Projeto Cleartech" },
+          slug: {
+            type: "string",
+            example: "cleartech",
+            description: "Use este valor em POST /projects como workspaceSlug",
+          },
+          description: { type: ["string", "null"] },
+          projectCount: { type: "integer", example: 0 },
+          isTokenDefault: {
+            type: "boolean",
+            description: "true se este é o workspace padrão do token",
+          },
         },
       },
       UpdateProject: {
@@ -185,20 +292,105 @@ export const openapiSpec = {
   },
   security: [{ bearerAuth: [] }],
   tags: [
-    { name: "projects" },
+    {
+      name: "workspaces",
+      description:
+        "Liste workspaces antes de criar projetos. O campo `slug` deve ser enviado em POST /projects.",
+    },
+    {
+      name: "projects",
+      description:
+        "CRUD de projetos. Ao criar, informe workspaceSlug ou workspace se o destino não for o padrão do token.",
+    },
     { name: "boards" },
     { name: "columns" },
     { name: "tasks" },
     { name: "comments" },
   ],
   paths: {
+    "/workspaces": {
+      get: {
+        tags: ["workspaces"],
+        summary: "Lista workspaces do usuário do token",
+        description:
+          "Primeiro passo recomendado para IAs: descubra o `slug` (ex.: cleartech) e use-o em POST /projects como `workspaceSlug`. Inclui `isTokenDefault` e `defaultWorkspaceId`.",
+        operationId: "listWorkspaces",
+        responses: {
+          "200": {
+            description: "Lista de workspaces",
+            content: {
+              "application/json": {
+                schema: {
+                  allOf: [
+                    { $ref: "#/components/schemas/Success" },
+                    {
+                      type: "object",
+                      properties: {
+                        data: {
+                          type: "object",
+                          properties: {
+                            data: {
+                              type: "array",
+                              items: { $ref: "#/components/schemas/Workspace" },
+                            },
+                            defaultWorkspaceId: { type: "string" },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+                example: {
+                  success: true,
+                  data: {
+                    data: [
+                      {
+                        id: "clws1",
+                        name: "Empresa Demo",
+                        slug: "empresa-demo",
+                        projectCount: 2,
+                        isTokenDefault: true,
+                      },
+                      {
+                        id: "clws2",
+                        name: "Projeto Cleartech",
+                        slug: "cleartech",
+                        projectCount: 0,
+                        isTokenDefault: false,
+                      },
+                    ],
+                    defaultWorkspaceId: "clws1",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/projects": {
       get: {
         tags: ["projects"],
         summary: "Lista projetos",
+        description:
+          "Por padrão lista o workspace do token. Filtre com workspaceSlug=cleartech (ou workspace / workspaceId).",
+        operationId: "listProjects",
         parameters: [
           { name: "status", in: "query", schema: { type: "string" } },
           { name: "search", in: "query", schema: { type: "string" } },
+          {
+            name: "workspaceSlug",
+            in: "query",
+            schema: { type: "string", example: "cleartech" },
+            description: 'Filtra por slug, ex.: "cleartech"',
+          },
+          {
+            name: "workspace",
+            in: "query",
+            schema: { type: "string", example: "Projeto Cleartech" },
+            description: "id, slug ou nome do workspace",
+          },
+          { name: "workspaceId", in: "query", schema: { type: "string" } },
           { name: "limit", in: "query", schema: { type: "integer", default: 50, maximum: 100 } },
           { name: "cursor", in: "query", schema: { type: "string" } },
         ],
@@ -232,14 +424,59 @@ export const openapiSpec = {
       post: {
         tags: ["projects"],
         summary: "Cria projeto",
+        operationId: "createProject",
+        description:
+          'OBRIGATÓRIO quando a instrução citar um workspace: envie workspaceSlug (ex.: "cleartech") ou workspace (ex.: "Projeto Cleartech"). Sem isso, usa o workspace padrão do token.',
         requestBody: {
           required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/CreateProject" } } },
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateProject" },
+              examples: {
+                cleartechSlug: {
+                  summary: "Cleartech via slug",
+                  value: {
+                    name: "Site institucional",
+                    workspaceSlug: "cleartech",
+                    description: "Criado pela IA no workspace Projeto Cleartech",
+                    status: "ACTIVE",
+                  },
+                },
+                cleartechNome: {
+                  summary: "Cleartech via nome",
+                  value: {
+                    name: "Site institucional",
+                    workspace: "Projeto Cleartech",
+                  },
+                },
+              },
+            },
+          },
         },
         responses: {
           "201": {
-            description: "Projeto criado",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Success" } } },
+            description: "Projeto criado (inclui workspace.id/name/slug na resposta)",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Success" },
+                example: {
+                  success: true,
+                  data: {
+                    id: "clproj1",
+                    name: "Site institucional",
+                    workspaceId: "clws2",
+                    workspace: {
+                      id: "clws2",
+                      name: "Projeto Cleartech",
+                      slug: "cleartech",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Workspace não encontrado ou sem acesso",
           },
         },
       },

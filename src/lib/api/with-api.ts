@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { z, type ZodTypeAny } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
+import { AppError } from "@/lib/errors";
 
 type HandlerCtx<P = Record<string, string>> = {
   req: Request;
@@ -142,6 +143,10 @@ export function withApi<P = Record<string, string>, S extends ZodTypeAny | undef
       const out = await handler({ req, auth, body, params });
       return withCorsAndRateLimit(req, out, auth.token.id, origin, rl);
     } catch (err) {
+      if (err instanceof AppError) {
+        const res = apiError(err.code, err.message, err.status);
+        return withCorsAndRateLimit(req, res, auth.token.id, origin, rl);
+      }
       console.error("[api]", err);
       const res = apiError("INTERNAL_ERROR", "Erro interno do servidor.", 500);
       return withCorsAndRateLimit(req, res, auth.token.id, origin, rl);

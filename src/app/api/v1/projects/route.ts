@@ -2,6 +2,7 @@ import { z } from "zod";
 import { projectService } from "@/services/projects";
 import { withApi } from "@/lib/api/with-api";
 import { apiError, apiOk } from "@/lib/api/response";
+import { resolveApiWorkspace } from "@/lib/api/resolve-workspace";
 
 export const dynamic = "force-dynamic";
 import {
@@ -24,13 +25,28 @@ export const GET = withApi(
       );
     }
 
-    const result = await projectService.list(auth.workspaceId, {
+    const workspace = await resolveApiWorkspace({
+      userId: auth.userId,
+      fallbackWorkspaceId: auth.workspaceId,
+      workspaceId: parsed.data.workspaceId,
+      workspaceSlug: parsed.data.workspaceSlug,
+      workspace: parsed.data.workspace,
+    });
+
+    const result = await projectService.list(workspace.id, {
       status: parsed.data.status,
       search: parsed.data.search,
       take: parsed.data.limit,
       cursor: parsed.data.cursor,
     });
-    return apiOk(result);
+    return apiOk({
+      ...result,
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+      },
+    });
   },
 );
 
@@ -41,12 +57,19 @@ export const POST = withApi(
   },
   async ({ auth, body }) => {
     const data = body as z.infer<typeof createProjectSchema>;
-    const workspaceId = data.workspaceId ?? auth.workspaceId;
+
+    const workspace = await resolveApiWorkspace({
+      userId: auth.userId,
+      fallbackWorkspaceId: auth.workspaceId,
+      workspaceId: data.workspaceId,
+      workspaceSlug: data.workspaceSlug,
+      workspace: data.workspace,
+    });
 
     const project = await projectService.create(
       { userId: auth.userId, actorType: "API" },
       {
-        workspaceId,
+        workspaceId: workspace.id,
         name: data.name,
         description: data.description,
         color: data.color,
@@ -57,6 +80,16 @@ export const POST = withApi(
         createdBy: auth.userId ?? auth.token.id,
       },
     );
-    return apiOk(project, { status: 201 });
+    return apiOk(
+      {
+        ...project,
+        workspace: {
+          id: workspace.id,
+          name: workspace.name,
+          slug: workspace.slug,
+        },
+      },
+      { status: 201 },
+    );
   },
 );

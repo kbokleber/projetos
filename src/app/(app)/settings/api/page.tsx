@@ -54,8 +54,21 @@ export default async function SettingsApiPage() {
         </nav>
         <h1 className="text-2xl font-semibold tracking-tight">API · Tokens</h1>
         <p className="text-sm text-muted-foreground">
-          Tokens de <strong>{active.name}</strong>. O token completo é mostrado
-          uma única vez.
+          Tokens de <strong>{active.name}</strong> (slug:{" "}
+          <code className="font-mono text-xs">{active.slug}</code>). O token
+          completo é mostrado uma única vez.
+        </p>
+        <p className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          Para a IA criar projetos neste workspace, envie no body{" "}
+          <code className="font-mono">
+            {`{"name":"...","workspaceSlug":"${active.slug}"}`}
+          </code>{" "}
+          ou{" "}
+          <code className="font-mono">
+            {`{"name":"...","workspace":"${active.name}"}`}
+          </code>
+          . Liste workspaces em{" "}
+          <code className="font-mono">GET /api/v1/workspaces</code>.
         </p>
       </div>
 

@@ -5,7 +5,12 @@ const cuid = z.string().min(1);
 const dateLike = z.string().datetime().or(z.string());
 
 export const createProjectSchema = z.object({
+  /** ID do workspace (CUID). Preferir workspaceSlug quando a IA souber o slug. */
   workspaceId: cuid.optional(),
+  /** Slug do workspace, ex.: "cleartech". */
+  workspaceSlug: z.string().min(1).max(80).optional(),
+  /** Atalho: id, slug ou nome do workspace (ex.: "Projeto Cleartech" ou "cleartech"). */
+  workspace: z.string().min(1).max(120).optional(),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional().nullable(),
   color: z
@@ -43,6 +48,9 @@ export const listProjectsQuerySchema = z.object({
     .enum(["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"])
     .optional(),
   search: z.string().max(120).optional(),
+  workspaceId: z.string().min(1).optional(),
+  workspaceSlug: z.string().min(1).max(80).optional(),
+  workspace: z.string().min(1).max(120).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().max(200).optional(),
 });
