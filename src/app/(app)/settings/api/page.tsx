@@ -59,15 +59,14 @@ export default async function SettingsApiPage() {
           completo é mostrado uma única vez.
         </p>
         <p className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Para a IA criar projetos neste workspace, envie no body{" "}
+          Para a IA criar/editar tarefas, o token precisa de{" "}
+          <code className="font-mono">tasks:write</code> (já vem marcado em
+          &quot;Recomendado IA&quot;). Exemplo PATCH:{" "}
           <code className="font-mono">
-            {`{"name":"...","workspaceSlug":"${active.slug}"}`}
-          </code>{" "}
-          ou{" "}
-          <code className="font-mono">
-            {`{"name":"...","workspace":"${active.name}"}`}
+            {`PATCH /api/v1/tasks/{id} {"priority":"HIGH"}`}
           </code>
-          . Liste workspaces em{" "}
+          . Tokens antigos sem esse escopo devem ser revogados e gerados de
+          novo. Liste workspaces em{" "}
           <code className="font-mono">GET /api/v1/workspaces</code>.
         </p>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   createApiTokenAction,
@@ -12,7 +12,7 @@ const SCOPE_LABELS: Record<string, string> = {
   "projects:read": "Projetos · leitura",
   "projects:write": "Projetos · escrita",
   "tasks:read": "Tarefas · leitura",
-  "tasks:write": "Tarefas · escrita",
+  "tasks:write": "Tarefas · escrita (criar/editar/mover)",
   "comments:read": "Comentários · leitura",
   "comments:write": "Comentários · escrita",
   "members:read": "Membros · leitura",
@@ -20,15 +20,50 @@ const SCOPE_LABELS: Record<string, string> = {
   "webhooks:write": "Webhooks · escrita",
 };
 
+/** Escopos recomendados para IAs (inclui PATCH de tarefas). */
+const AI_DEFAULT_SCOPES = new Set([
+  "projects:read",
+  "projects:write",
+  "tasks:read",
+  "tasks:write",
+  "comments:read",
+  "comments:write",
+]);
+
 export function CreateTokenForm() {
   const [state, action, pending] = useActionState<
     CreateTokenResult | undefined,
     FormData
   >(createApiTokenAction, undefined);
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(AI_DEFAULT_SCOPES),
+  );
+
+  function toggle(scope: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(scope)) next.delete(scope);
+      else next.add(scope);
+      return next;
+    });
+  }
+
+  function selectAiScopes() {
+    setSelected(new Set(AI_DEFAULT_SCOPES));
+  }
+
+  function selectAll() {
+    setSelected(new Set(API_SCOPES));
+  }
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <h2 className="text-sm font-medium">Novo token</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Para a IA editar tarefas (PATCH), o token precisa incluir{" "}
+        <code className="font-mono">tasks:write</code>. Os escopos recomendados
+        para IA já vêm marcados.
+      </p>
       <form action={action} className="mt-3 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="name" className="text-sm">
@@ -39,20 +74,44 @@ export function CreateTokenForm() {
             name="name"
             required
             maxLength={80}
-            placeholder="Ex.: GLPI Produção"
+            placeholder="Ex.: IA Assistente"
             className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm">Escopos</legend>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <legend className="text-sm">Escopos</legend>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAiScopes}
+                className="text-xs text-primary hover:underline"
+              >
+                Recomendado IA
+              </button>
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-xs text-primary hover:underline"
+              >
+                Todos
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {API_SCOPES.map((s) => (
               <label
                 key={s}
                 className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm"
               >
-                <input type="checkbox" name="scopes" value={s} />
+                <input
+                  type="checkbox"
+                  name="scopes"
+                  value={s}
+                  checked={selected.has(s)}
+                  onChange={() => toggle(s)}
+                />
                 <span>{SCOPE_LABELS[s] ?? s}</span>
               </label>
             ))}

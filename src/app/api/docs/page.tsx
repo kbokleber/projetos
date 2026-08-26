@@ -56,6 +56,18 @@ export default function ApiDocsPage() {
               </code>
             </li>
             <li>
+              Para <strong className="text-foreground">editar</strong> uma
+              tarefa (prioridade, título, prazo…), o token precisa de{" "}
+              <code className="font-mono text-xs text-foreground">
+                tasks:write
+              </code>
+              :
+              <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs text-foreground">
+{`PATCH /api/v1/tasks/{taskId}
+{ "priority": "HIGH" }`}
+              </pre>
+            </li>
+            <li>
               Sem <code className="font-mono text-xs">workspaceSlug</code> /{" "}
               <code className="font-mono text-xs">workspace</code>, o projeto vai
               para o workspace <strong className="text-foreground">padrão do token</strong>{" "}

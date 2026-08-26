@@ -93,3 +93,50 @@ export async function listApiWorkspaces(userId: string | null) {
     },
   });
 }
+
+/**
+ * Garante que o usuário do token pode acessar a tarefa (membro do workspace do projeto).
+ * Não limita ao workspace padrão do token.
+ */
+export async function resolveTaskAccessForApi(opts: {
+  userId: string | null;
+  taskId: string;
+}) {
+  if (!opts.userId) {
+    throw new AppError("FORBIDDEN", "Usuário não associado ao token.", 403);
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: opts.taskId },
+    select: {
+      id: true,
+      projectId: true,
+      project: { select: { id: true, workspaceId: true, name: true } },
+    },
+  });
+  if (!task) {
+    throw new AppError("NOT_FOUND", "Tarefa não encontrada.", 404);
+  }
+
+  const member = await prisma.workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId: task.project.workspaceId,
+        userId: opts.userId,
+      },
+    },
+    select: { id: true },
+  });
+  if (!member) {
+    throw new AppError(
+      "FORBIDDEN",
+      "Sem acesso ao workspace desta tarefa.",
+      403,
+    );
+  }
+
+  return {
+    workspaceId: task.project.workspaceId,
+    projectId: task.projectId,
+  };
+}

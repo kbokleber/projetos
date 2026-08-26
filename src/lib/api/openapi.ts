@@ -10,10 +10,20 @@ const API_GUIDE = `
 
 ### Autenticação
 Envie o header: \`Authorization: Bearer pk_live_...\`  
-Token gerado em **/settings/api** (escopos necessários: \`projects:read\` / \`projects:write\`).
+Token gerado em **/settings/api**.
+
+### Escopos obrigatórios
+| Ação | Escopo |
+|------|--------|
+| Listar/ler projetos | \`projects:read\` |
+| Criar/editar projetos | \`projects:write\` |
+| Listar/ler tarefas | \`tasks:read\` |
+| **Criar / editar (PATCH) / mover / arquivar tarefas** | **\`tasks:write\`** |
+
+Sem \`tasks:write\`, \`PATCH /tasks/{id}\` retorna **403** (Escopo insuficiente).
 
 ### Workspaces (importante)
-Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em **qualquer workspace** do qual seja membro.
+Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em **qualquer workspace** do qual seja membro (incluindo editar tarefas desses workspaces).
 
 **Sempre** especifique o workspace ao criar projetos, se a instrução mencionar um workspace (ex.: "Projeto Cleartech"):
 
@@ -23,7 +33,16 @@ Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em *
    - \`workspace\` — id, slug **ou nome** — ex.: \`"Projeto Cleartech"\`
    - \`workspaceId\` — CUID interno
 
-Se omitir esses campos, o projeto vai para o workspace padrão do token (pode ser o errado).
+### Exemplo: editar prioridade de uma tarefa
+\`\`\`http
+PATCH /tasks/{taskId}
+Authorization: Bearer pk_live_...
+Content-Type: application/json
+
+{ "priority": "HIGH" }
+\`\`\`
+
+Outros campos opcionais no PATCH: \`title\`, \`description\`, \`dueDate\`, \`completed\`, \`columnId\`, \`archived\`, etc. Envie **apenas** o que deseja alterar.
 
 ### Exemplo: criar projeto no Cleartech
 \`\`\`http
@@ -33,14 +52,8 @@ Content-Type: application/json
 
 {
   "name": "Site institucional",
-  "workspaceSlug": "cleartech",
-  "description": "Projeto criado via API"
+  "workspaceSlug": "cleartech"
 }
-\`\`\`
-
-Equivalente:
-\`\`\`json
-{ "name": "Site institucional", "workspace": "Projeto Cleartech" }
 \`\`\`
 
 ### Listar projetos de um workspace
@@ -55,7 +68,7 @@ export const openapiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Sistema de Projetos — API Pública",
-    version: "1.1.0",
+    version: "1.2.0",
     description: API_GUIDE,
   },
   servers: [{ url: `${server}/api/v1`, description: "Servidor atual" }],
@@ -528,14 +541,57 @@ export const openapiSpec = {
     },
     "/tasks/{taskId}": {
       parameters: [{ name: "taskId", in: "path", required: true, schema: { type: "string" } }],
-      get: { tags: ["tasks"], summary: "Detalhe de tarefa", responses: { "200": { description: "OK" } } },
-      patch: {
+      get: {
         tags: ["tasks"],
-        summary: "Atualiza tarefa",
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateTask" } } } },
+        summary: "Detalhe de tarefa",
+        description: "Requer escopo `tasks:read`.",
         responses: { "200": { description: "OK" } },
       },
-      delete: { tags: ["tasks"], summary: "Arquiva tarefa", responses: { "204": { description: "OK" } } },
+      patch: {
+        tags: ["tasks"],
+        summary: "Atualiza tarefa (parcial)",
+        description:
+          "Requer escopo `tasks:write`. Envie só os campos a alterar. Ex.: `{ \"priority\": \"HIGH\" }` ou `{ \"title\": \"...\", \"dueDate\": \"2026-09-01T00:00:00.000Z\" }`.",
+        operationId: "updateTask",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdateTask" },
+              examples: {
+                priority: {
+                  summary: "Alterar prioridade",
+                  value: { priority: "HIGH" },
+                },
+                titleAndDue: {
+                  summary: "Título e prazo",
+                  value: {
+                    title: "Revisar proposta",
+                    dueDate: "2026-09-15T18:00:00.000Z",
+                  },
+                },
+                complete: {
+                  summary: "Marcar como concluída",
+                  value: { completed: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Tarefa atualizada" },
+          "403": {
+            description:
+              "Escopo insuficiente (falta tasks:write) ou sem acesso ao workspace da tarefa",
+          },
+        },
+      },
+      delete: {
+        tags: ["tasks"],
+        summary: "Arquiva tarefa",
+        description: "Requer escopo `tasks:write`.",
+        responses: { "204": { description: "OK" } },
+      },
     },
     "/tasks/{taskId}/move": {
       parameters: [{ name: "taskId", in: "path", required: true, schema: { type: "string" } }],
