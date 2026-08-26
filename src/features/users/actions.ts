@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { authService } from "@/services/auth";
-import { adminCreateUserSchema } from "@/schemas/auth";
+import { adminCreateUserSchema, adminUpdateUserNameSchema } from "@/schemas/auth";
 import { AppError } from "@/lib/errors";
 
 export type AdminUserFormState =
@@ -113,4 +113,103 @@ export async function adminChangeUserRoleAction(formData: FormData) {
     data: { role },
   });
   revalidatePath("/settings/users");
+}
+
+export async function adminUpdateUserNameAction(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAdmin();
+
+  const parsed = adminUpdateUserNameSchema.safeParse({
+    userId: formData.get("userId"),
+    name: formData.get("name"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Nome inválido.",
+    };
+  }
+
+  const exists = await prisma.user.findUnique({
+    where: { id: parsed.data.userId },
+    select: { id: true },
+  });
+  if (!exists) {
+    return { ok: false, error: "Usuário não encontrado." };
+  }
+
+  await prisma.user.update({
+    where: { id: parsed.data.userId },
+    data: { name: parsed.data.name.trim() },
+  });
+  revalidatePath("/settings/users");
+  return { ok: true };
+}
+
+export async function adminDeleteUserAction(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireAdmin();
+  const userId = formData.get("userId");
+  if (typeof userId !== "string" || !userId) {
+    return { ok: false, error: "Usuário inválido." };
+  }
+  if (userId === me.id) {
+    return { ok: false, error: "Você não pode excluir a si mesmo." };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, name: true },
+  });
+  if (!target) {
+    return { ok: false, error: "Usuário não encontrado." };
+  }
+
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({
+      where: { role: "ADMIN", active: true },
+    });
+    if (adminCount <= 1) {
+      return {
+        ok: false,
+        error: "Não é possível excluir o último administrador ativo.",
+      };
+    }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Projetos/tarefas exigem createdBy — reatribui ao admin que exclui
+      await tx.project.updateMany({
+        where: { createdBy: userId },
+        data: { createdBy: me.id },
+      });
+      await tx.task.updateMany({
+        where: { createdBy: userId },
+        data: { createdBy: me.id },
+      });
+      await tx.checklistItem.updateMany({
+        where: { completedBy: userId },
+        data: { completedBy: null },
+      });
+      await tx.apiToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date(), userId: null },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+  } catch (err) {
+    console.error("[adminDeleteUser]", err);
+    return {
+      ok: false,
+      error:
+        "Não foi possível excluir o usuário. Verifique vínculos pendentes e tente novamente.",
+    };
+  }
+
+  revalidatePath("/settings/users");
+  return { ok: true };
 }

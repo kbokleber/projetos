@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { dateBR } from "@/lib/format-date";
 import { adminToggleUserActiveAction } from "./actions";
 import { RoleSelect } from "./role-select";
+import { UserNameEdit } from "./name-edit";
+import { DeleteUserButton } from "./delete-user-button";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 export async function UserList({ currentUserId }: { currentUserId: string }) {
@@ -43,13 +45,12 @@ export async function UserList({ currentUserId }: { currentUserId: string }) {
         <tbody className="divide-y divide-border">
           {users.map((u) => (
             <tr key={u.id} className="hover:bg-accent/20">
-              <td className="px-3 py-2 font-medium">
-                {u.name}
-                {u.id === currentUserId && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    (você)
-                  </span>
-                )}
+              <td className="px-3 py-2">
+                <UserNameEdit
+                  userId={u.id}
+                  name={u.name}
+                  isSelf={u.id === currentUserId}
+                />
               </td>
               <td className="px-3 py-2 text-muted-foreground">{u.email}</td>
               <td className="px-3 py-2">
@@ -80,15 +81,18 @@ export async function UserList({ currentUserId }: { currentUserId: string }) {
               </td>
               <td className="px-3 py-2 text-right">
                 {u.id !== currentUserId && (
-                  <form action={adminToggleUserActiveAction} className="inline">
-                    <input type="hidden" name="userId" value={u.id} />
-                    <button
-                      type="submit"
-                      className="text-xs text-primary hover:underline"
-                    >
-                      {u.active ? "Desativar" : "Ativar"}
-                    </button>
-                  </form>
+                  <div className="inline-flex items-center gap-3">
+                    <form action={adminToggleUserActiveAction} className="inline">
+                      <input type="hidden" name="userId" value={u.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {u.active ? "Desativar" : "Ativar"}
+                      </button>
+                    </form>
+                    <DeleteUserButton userId={u.id} userName={u.name} />
+                  </div>
                 )}
               </td>
             </tr>

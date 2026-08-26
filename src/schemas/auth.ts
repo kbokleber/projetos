@@ -86,8 +86,17 @@ export const adminCreateUserSchema = z
     }
   });
 
+export const adminUpdateUserNameSchema = z.object({
+  userId: z.string().min(1, "Usuário inválido"),
+  name: z
+    .string()
+    .min(2, "Informe o nome")
+    .max(120, "Nome muito longo"),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>;
+export type AdminUpdateUserNameInput = z.infer<typeof adminUpdateUserNameSchema>;
