@@ -138,3 +138,40 @@ export async function removeWorkspaceMemberAction(formData: FormData) {
     throw err;
   }
 }
+
+export async function deleteWorkspaceAction(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getSessionUser();
+  const workspaceId = formData.get("workspaceId");
+  if (typeof workspaceId !== "string" || !workspaceId) {
+    return { ok: false, error: "Workspace inválido." };
+  }
+
+  try {
+    const { workspaces, active } = await resolveActiveWorkspace(user.id);
+    await workspaceService.delete(user.id, workspaceId);
+
+    if (active?.id === workspaceId) {
+      const next = workspaces.find((w) => w.id !== workspaceId);
+      if (next) {
+        await setActiveWorkspaceCookie(next.id);
+      }
+    }
+
+    revalidatePath("/", "layout");
+    revalidatePath("/settings/workspaces");
+    revalidatePath("/dashboard");
+    revalidatePath("/projects");
+    revalidatePath("/my-tasks");
+    revalidatePath("/settings/api");
+    revalidatePath("/settings/webhooks");
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof AppError) {
+      return { ok: false, error: err.message };
+    }
+    console.error("[deleteWorkspace]", err);
+    return { ok: false, error: "Não foi possível excluir o workspace." };
+  }
+}

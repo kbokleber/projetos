@@ -5,6 +5,7 @@ import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { workspaceService } from "@/services/workspaces";
 import { CreateWorkspaceForm } from "@/features/workspaces/create-form";
 import { WorkspaceMembersPanel } from "@/features/workspaces/members-panel";
+import { DeleteWorkspaceButton } from "@/features/workspaces/delete-workspace-button";
 import { switchWorkspaceAction } from "@/features/workspaces/actions";
 import { Button } from "@/components/ui/button";
 
@@ -53,6 +54,13 @@ export default async function SettingsWorkspacesPage() {
             {workspaces.map((w) => {
               const role = w.members[0]?.role ?? "MEMBER";
               const isActive = w.id === activeId;
+              const isOwner = role === "OWNER";
+              const canDelete = isOwner && workspaces.length > 1;
+              const disabledReason = !isOwner
+                ? "Apenas o OWNER pode excluir."
+                : workspaces.length <= 1
+                  ? "Crie outro workspace antes de excluir este."
+                  : undefined;
               return (
                 <li
                   key={w.id}
@@ -77,22 +85,32 @@ export default async function SettingsWorkspacesPage() {
                       </p>
                     )}
                   </div>
-                  {!isActive && (
-                    <form action={switchWorkspaceAction}>
-                      <input type="hidden" name="workspaceId" value={w.id} />
-                      <Button type="submit" variant="outline" size="sm">
-                        Ativar
-                      </Button>
-                    </form>
-                  )}
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                    {!isActive && (
+                      <form action={switchWorkspaceAction}>
+                        <input type="hidden" name="workspaceId" value={w.id} />
+                        <Button type="submit" variant="outline" size="sm">
+                          Ativar
+                        </Button>
+                      </form>
+                    )}
+                    <DeleteWorkspaceButton
+                      workspaceId={w.id}
+                      workspaceName={w.name}
+                      projectCount={w._count.projects}
+                      canDelete={canDelete}
+                      disabledReason={disabledReason}
+                    />
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
         <p className="text-xs text-muted-foreground">
-          Clique em <strong>Ativar</strong> ou use o seletor no rodapé do menu
-          lateral.{" "}
+          Clique em <strong>Ativar</strong> ou use o seletor no menu lateral.
+          Apenas o <strong>OWNER</strong> pode excluir um workspace (e não pode
+          excluir o único que possui).{" "}
           <Link href="/dashboard" className="text-primary underline">
             Ir ao dashboard
           </Link>

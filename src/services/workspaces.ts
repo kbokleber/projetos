@@ -199,4 +199,42 @@ export const workspaceService = {
 
     await prisma.workspaceMember.delete({ where: { id: target.id } });
   },
+
+  /**
+   * Exclui o workspace e todos os dados cascateados (projetos, tokens, etc.).
+   * Apenas OWNER. Impede exclusão se for o único workspace do usuário.
+   */
+  async delete(actorId: string, workspaceId: string) {
+    await requireMembership(actorId, workspaceId, ["OWNER"]);
+
+    const membershipCount = await prisma.workspaceMember.count({
+      where: { userId: actorId },
+    });
+    if (membershipCount <= 1) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Não é possível excluir seu único workspace. Crie outro antes.",
+        400,
+      );
+    }
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { projects: true, members: true } },
+      },
+    });
+    if (!workspace) {
+      throw new AppError("NOT_FOUND", "Workspace não encontrado.", 404);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.idempotencyKey.deleteMany({ where: { workspaceId } });
+      await tx.workspace.delete({ where: { id: workspaceId } });
+    });
+
+    return workspace;
+  },
 };
