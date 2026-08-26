@@ -55,7 +55,8 @@ export default async function ProjectDetailPage({
               tasks: {
                 where: { archivedAt: null },
                 orderBy: { position: "asc" },
-                take: 50,
+                // Sem limite artificial: o board precisa listar todas as
+                // tarefas ativas (ex.: coluna Concluído com 80+ itens).
                 select: {
                   id: true,
                   columnId: true,

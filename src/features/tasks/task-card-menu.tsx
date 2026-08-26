@@ -1,11 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   MoreHorizontal,
-  ArrowRight,
   Check,
   ExternalLink,
   Trash2,
@@ -13,12 +12,10 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuItem,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { moveTaskAction, deleteTaskAction } from "@/features/tasks/actions";
 
@@ -29,21 +26,29 @@ export function TaskCardMenu({
   taskId,
   currentColumnId,
   columns,
+  onMoved,
 }: {
   projectId: string;
   taskId: string;
   currentColumnId: string;
   columns: Column[];
+  /** Atualização otimista no board (ex.: Kanban local). */
+  onMoved?: (taskId: string, columnId: string) => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const handleMove = (columnId: string) => {
-    if (columnId === currentColumnId) return;
+    if (columnId === currentColumnId || pending) return;
+    onMoved?.(taskId, columnId);
     const fd = new FormData();
     fd.set("columnId", columnId);
     startTransition(async () => {
-      await moveTaskAction(taskId, fd);
+      try {
+        await moveTaskAction(taskId, fd);
+      } catch (err) {
+        console.error("[TaskCardMenu] move failed:", err);
+      }
       router.refresh();
     });
   };
@@ -75,50 +80,56 @@ export function TaskCardMenu({
     });
   };
 
+  const stopDragInterference = (e: SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           aria-label="Ações da tarefa"
           disabled={pending}
-          className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/card:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
+          onPointerDown={stopDragInterference}
+          onMouseDown={stopDragInterference}
+          onClick={stopDragInterference}
+          className="ml-auto inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-100 transition-opacity hover:bg-accent hover:text-foreground sm:opacity-0 sm:group-hover/card:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
         >
           <MoreHorizontal className="size-4" />
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" sideOffset={4} className="min-w-[12rem]">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger disabled={pending}>
-            <ArrowRight className="size-3.5" />
-            Mover para
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="min-w-[12rem]">
-            {columns.length === 0 ? (
-              <DropdownMenuItem disabled>Nenhuma coluna</DropdownMenuItem>
-            ) : (
-              columns.map((c) => {
-                const isCurrent = c.id === currentColumnId;
-                return (
-                  <DropdownMenuItem
-                    key={c.id}
-                    disabled={pending || isCurrent}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      if (!isCurrent) handleMove(c.id);
-                    }}
-                  >
-                    <span className="flex-1 truncate">{c.name}</span>
-                    {isCurrent && (
-                      <Check className="size-3.5 text-muted-foreground" />
-                    )}
-                  </DropdownMenuItem>
-                );
-              })
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={4}
+        className="z-[100] min-w-[12rem]"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+          Mover para
+        </DropdownMenuLabel>
+        {columns.length === 0 ? (
+          <DropdownMenuItem disabled>Nenhuma coluna</DropdownMenuItem>
+        ) : (
+          columns.map((c) => {
+            const isCurrent = c.id === currentColumnId;
+            return (
+              <DropdownMenuItem
+                key={c.id}
+                disabled={pending || isCurrent}
+                onSelect={() => {
+                  if (!isCurrent) handleMove(c.id);
+                }}
+              >
+                <span className="flex-1 truncate">{c.name}</span>
+                {isCurrent && (
+                  <Check className="size-3.5 text-muted-foreground" />
+                )}
+              </DropdownMenuItem>
+            );
+          })
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={`/projects/${projectId}/tasks/${taskId}`}>

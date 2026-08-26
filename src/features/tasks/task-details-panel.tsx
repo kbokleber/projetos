@@ -69,7 +69,9 @@ export function TaskDetailsPanel(props: {
     FormData
   >(boundComment, undefined);
 
-  const moveBound = moveTaskAction.bind(null, taskId);
+  const moveBound = async (formData: FormData) => {
+    await moveTaskAction(taskId, formData);
+  };
 
   const isoDate = (d: Date | null) =>
     d ? new Date(d).toISOString().slice(0, 10) : "";

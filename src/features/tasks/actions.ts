@@ -238,38 +238,50 @@ export async function moveTaskAction(
 ) {
   const user = await getSession();
   const columnId = formData.get("columnId");
-  if (typeof columnId !== "string") return;
+  if (typeof columnId !== "string") return { ok: false as const, error: "Coluna inválida." };
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: { id: true, projectId: true, boardId: true, columnId: true },
   });
-  if (!task) return;
+  if (!task) return { ok: false as const, error: "Tarefa não encontrada." };
 
   const targetCol = await prisma.boardColumn.findUnique({
     where: { id: columnId },
     select: { id: true, boardId: true },
   });
-  if (!targetCol || targetCol.boardId !== task.boardId) return;
+  if (!targetCol || targetCol.boardId !== task.boardId) {
+    return { ok: false as const, error: "Coluna inválida para este board." };
+  }
 
-  await assertProjectEditAccess(user.id, task.projectId);
+  try {
+    await assertProjectEditAccess(user.id, task.projectId);
 
-  const { POSITION_GAP } = await import("@/lib/constants");
-  const last = await prisma.task.findFirst({
-    where: { columnId, archivedAt: null, id: { not: taskId } },
-    orderBy: { position: "desc" },
-  });
-  const position = last ? last.position + POSITION_GAP : POSITION_GAP;
+    const { POSITION_GAP } = await import("@/lib/constants");
+    const last = await prisma.task.findFirst({
+      where: { columnId, archivedAt: null, id: { not: taskId } },
+      orderBy: { position: "desc" },
+    });
+    const position = last ? last.position + POSITION_GAP : POSITION_GAP;
 
-  await taskService.move(
-    { userId: user.id, actorType: "USER" },
-    taskId,
-    { columnId, position },
-  );
+    await taskService.move(
+      { userId: user.id, actorType: "USER" },
+      taskId,
+      { columnId, position },
+    );
 
-  revalidatePath(`/projects/${task.projectId}`);
-  revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
-  revalidatePath("/my-tasks");
+    revalidatePath(`/projects/${task.projectId}`);
+    revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
+    revalidatePath("/my-tasks");
+    revalidatePath("/dashboard");
+    return { ok: true as const };
+  } catch (err) {
+    if (err instanceof AppError) {
+      return { ok: false as const, error: err.message };
+    }
+    console.error("[moveTaskAction]", err);
+    return { ok: false as const, error: "Não foi possível mover a tarefa." };
+  }
 }
 
 /**

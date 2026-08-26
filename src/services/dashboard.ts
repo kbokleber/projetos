@@ -4,6 +4,27 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { isCompletionColumnName } from "@/lib/task-completion";
+
+async function completionColumnIds(workspaceId: string) {
+  const columns = await prisma.boardColumn.findMany({
+    where: { board: { project: { workspaceId } } },
+    select: { id: true, name: true },
+  });
+  return columns.filter((c) => isCompletionColumnName(c.name)).map((c) => c.id);
+}
+
+/** Em aberto = ainda não concluída (sem completedAt e fora de colunas Concluído/Done). */
+function openTaskWhere(workspaceId: string, doneColumnIds: string[]) {
+  return {
+    project: { workspaceId, archivedAt: null },
+    archivedAt: null,
+    completedAt: null,
+    ...(doneColumnIds.length > 0
+      ? { columnId: { notIn: doneColumnIds } }
+      : {}),
+  };
+}
 
 export const dashboardService = {
   async summary(workspaceId: string) {
@@ -11,6 +32,9 @@ export const dashboardService = {
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date(today);
     endOfDay.setHours(23, 59, 59, 999);
+
+    const doneColumnIds = await completionColumnIds(workspaceId);
+    const openWhere = openTaskWhere(workspaceId, doneColumnIds);
 
     const [
       projectsActive,
@@ -23,13 +47,7 @@ export const dashboardService = {
       prisma.project.count({
         where: { workspaceId, archivedAt: null, status: { in: ["ACTIVE", "PLANNING"] } },
       }),
-      prisma.task.count({
-        where: {
-          project: { workspaceId },
-          archivedAt: null,
-          completedAt: null,
-        },
-      }),
+      prisma.task.count({ where: openWhere }),
       prisma.task.count({
         where: {
           project: { workspaceId },
@@ -38,9 +56,7 @@ export const dashboardService = {
       }),
       prisma.task.count({
         where: {
-          project: { workspaceId },
-          archivedAt: null,
-          completedAt: null,
+          ...openWhere,
           dueDate: { lt: today },
         },
       }),

@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { isCompletionColumnName } from "@/lib/task-completion";
 import type { Task, TaskPriority } from "@/generated/prisma/client";
 import { POSITION_GAP } from "@/lib/constants";
 
@@ -264,7 +265,8 @@ export const taskService = {
     });
     if (!project) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
 
-    // Valida troca de coluna
+    // Valida troca de coluna e sincroniza conclusão com coluna Concluído/Done
+    let targetColName: string | null = null;
     if (input.columnId && input.columnId !== task.columnId) {
       const targetCol = await prisma.boardColumn.findUnique({
         where: { id: input.columnId },
@@ -276,6 +278,7 @@ export const taskService = {
           422,
         );
       }
+      targetColName = targetCol.name;
     }
 
     const data: Record<string, unknown> = {};
@@ -289,6 +292,11 @@ export const taskService = {
     if (input.position !== undefined) data.position = input.position;
     if (input.completed !== undefined) {
       data.completedAt = input.completed ? new Date() : null;
+    } else if (targetColName !== null) {
+      // Entrar em Concluído marca como concluída; sair reabre
+      data.completedAt = isCompletionColumnName(targetColName)
+        ? new Date()
+        : null;
     }
     if (input.archived !== undefined) {
       data.archivedAt = input.archived ? new Date() : null;
@@ -352,16 +360,31 @@ export const taskService = {
     }
 
     const previousColumn = task.columnId;
+    const columnChanged = previousColumn !== input.columnId;
+    const moveData: {
+      columnId: string;
+      position: number;
+      completedAt?: Date | null;
+    } = {
+      columnId: input.columnId,
+      position: input.position,
+    };
+    if (columnChanged) {
+      moveData.completedAt = isCompletionColumnName(targetCol.name)
+        ? task.completedAt ?? new Date()
+        : null;
+    }
+
     const updated = await prisma.task.update({
       where: { id: taskId },
-      data: { columnId: input.columnId, position: input.position },
+      data: moveData,
       include: {
         column: true,
         project: { select: { id: true, name: true, workspaceId: true } },
       },
     });
 
-    if (previousColumn !== input.columnId) {
+    if (columnChanged) {
       await prisma.activity.create({
         data: {
           workspaceId: project.workspaceId,
@@ -380,6 +403,27 @@ export const taskService = {
           }),
         },
       });
+
+      if (
+        isCompletionColumnName(targetCol.name) &&
+        !task.completedAt &&
+        updated.completedAt
+      ) {
+        await prisma.activity.create({
+          data: {
+            workspaceId: project.workspaceId,
+            projectId: project.id,
+            taskId: updated.id,
+            userId: actor.userId,
+            actorType: actor.actorType,
+            actorId: actor.userId ?? `api:${project.workspaceId}`,
+            action: "task.completed",
+            entityType: "Task",
+            entityId: updated.id,
+            metadata: JSON.stringify({ via: "column" }),
+          },
+        });
+      }
 
       void import("@/services/webhooks").then(({ webhookService }) =>
         webhookService.dispatch(project.workspaceId, "task.moved", {

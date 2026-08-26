@@ -252,6 +252,18 @@ export function KanbanBoard({
             column={col}
             canEdit={canEdit}
             columns={columnOptions}
+            onMenuMove={(taskId, columnId) => {
+              setItems((prev) => {
+                const target = prev.find((c) => c.id === columnId);
+                if (!target) return prev;
+                return moveTaskInBoard(
+                  prev,
+                  taskId,
+                  columnId,
+                  target.tasks.length,
+                );
+              });
+            }}
           />
         ))}
       </div>
@@ -279,12 +291,14 @@ function KanbanColumn({
   column,
   canEdit,
   columns,
+  onMenuMove,
 }: {
   projectId: string;
   boardId: string;
   column: ColumnLite;
   canEdit: boolean;
   columns: Array<{ id: string; name: string }>;
+  onMenuMove?: (taskId: string, columnId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${column.id}` });
   const taskIds = column.tasks.map((t) => t.id);
@@ -322,6 +336,7 @@ function KanbanColumn({
               task={t}
               canComplete={canEdit}
               columns={columns}
+              onMenuMove={onMenuMove}
             />
           ))}
           {canEdit && (
@@ -342,11 +357,13 @@ function SortableTaskCard({
   task,
   canComplete,
   columns,
+  onMenuMove,
 }: {
   projectId: string;
   task: TaskLite;
   canComplete: boolean;
   columns: Array<{ id: string; name: string }>;
+  onMenuMove?: (taskId: string, columnId: string) => void;
 }) {
   const {
     attributes,
@@ -374,6 +391,7 @@ function SortableTaskCard({
         canComplete={canComplete}
         columns={columns}
         dragHandleProps={canComplete ? listeners : undefined}
+        onMenuMove={onMenuMove}
       />
     </div>
   );
@@ -386,6 +404,7 @@ function TaskCardContent({
   columns,
   isOverlay = false,
   dragHandleProps,
+  onMenuMove,
 }: {
   projectId: string;
   task: TaskLite;
@@ -393,6 +412,7 @@ function TaskCardContent({
   columns: Array<{ id: string; name: string }>;
   isOverlay?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
+  onMenuMove?: (taskId: string, columnId: string) => void;
 }) {
   const completed = !!task.completedAt;
   const overdue = !completed && task.dueDate && task.dueDate < new Date();
@@ -489,6 +509,7 @@ function TaskCardContent({
           taskId={task.id}
           currentColumnId={task.columnId}
           columns={columns}
+          onMoved={onMenuMove}
         />
       )}
     </div>
