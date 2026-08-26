@@ -81,6 +81,53 @@ export default async function TaskDetailPage({
     if (wsMember) canEdit = true;
   }
 
+  // Pessoas visíveis no projeto: membros do projeto + membros do workspace
+  const workspaceMembers = await prisma.workspaceMember.findMany({
+    where: {
+      workspaceId: project.workspaceId,
+      user: { active: true },
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { user: { name: "asc" } },
+  });
+
+  const assignableById = new Map<
+    string,
+    { userId: string; name: string | null; email: string }
+  >();
+  for (const m of project.members) {
+    if (!m.user) continue;
+    assignableById.set(m.userId, {
+      userId: m.userId,
+      name: m.user.name,
+      email: m.user.email,
+    });
+  }
+  for (const m of workspaceMembers) {
+    if (!assignableById.has(m.userId)) {
+      assignableById.set(m.userId, {
+        userId: m.userId,
+        name: m.user.name,
+        email: m.user.email,
+      });
+    }
+  }
+  // Mantém responsáveis atuais mesmo se saíram do projeto/workspace
+  for (const a of task.assignees) {
+    if (!assignableById.has(a.userId)) {
+      assignableById.set(a.userId, {
+        userId: a.userId,
+        name: a.user.name,
+        email: a.user.email,
+      });
+    }
+  }
+  const assignableMembers = [...assignableById.values()].sort((a, b) =>
+    (a.name ?? a.email).localeCompare(b.name ?? b.email, "pt-BR"),
+  );
+
   const board = project.boards.find((b) => b.id === task.column.boardId);
   const columns = board?.columns ?? [];
 
@@ -131,11 +178,7 @@ export default async function TaskDetailPage({
         columns={columns.map((c) => ({ id: c.id, name: c.name }))}
         currentColumnId={task.column.id}
         currentColumnName={task.column.name}
-        members={project.members.map((m) => ({
-          userId: m.userId,
-          name: m.user.name,
-          email: m.user.email,
-        }))}
+        members={assignableMembers}
         currentAssigneeIds={task.assignees.map((a) => a.userId)}
         initial={{
           title: task.title,

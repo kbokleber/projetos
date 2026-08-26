@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,6 +8,7 @@ import {
   DragOverlay,
   PointerSensor,
   KeyboardSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -23,9 +24,18 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Circle, CircleCheck, CalendarDays, AlertCircle } from "lucide-react";
+import {
+  Circle,
+  CircleCheck,
+  CalendarDays,
+  AlertCircle,
+  GripVertical,
+} from "lucide-react";
 import { dateBR } from "@/lib/format-date";
-import { toggleTaskCompletionAction, reorderTaskAction } from "@/features/tasks/actions";
+import {
+  toggleTaskCompletionAction,
+  reorderTaskAction,
+} from "@/features/tasks/actions";
 import { TaskCardMenu } from "@/features/tasks/task-card-menu";
 import { QuickTaskButton } from "@/features/tasks/quick-task-button";
 import { cn } from "@/lib/utils";
@@ -54,6 +64,56 @@ const priorityColor: Record<string, string> = {
   URGENT: "bg-red-500/10 text-red-700",
 };
 
+function moveTaskInBoard(
+  board: ColumnLite[],
+  taskId: string,
+  toColId: string,
+  toIndex: number,
+): ColumnLite[] {
+  const next = board.map((c) => ({ ...c, tasks: [...c.tasks] }));
+  const fromCol = next.find((c) => c.tasks.some((t) => t.id === taskId));
+  const toCol = next.find((c) => c.id === toColId);
+  if (!fromCol || !toCol) return board;
+
+  const fromIdx = fromCol.tasks.findIndex((t) => t.id === taskId);
+  if (fromIdx < 0) return board;
+  const [task] = fromCol.tasks.splice(fromIdx, 1);
+  task.columnId = toCol.id;
+
+  let insertAt = toIndex;
+  if (fromCol.id === toCol.id && fromIdx < insertAt) {
+    insertAt -= 1;
+  }
+  insertAt = Math.max(0, Math.min(insertAt, toCol.tasks.length));
+  toCol.tasks.splice(insertAt, 0, task);
+  return next;
+}
+
+function resolveDropTarget(
+  board: ColumnLite[],
+  activeId: string,
+  overId: string,
+): { toColId: string; toIndex: number } | null {
+  if (overId.startsWith("col:")) {
+    const toColId = overId.slice(4);
+    const col = board.find((c) => c.id === toColId);
+    if (!col) return null;
+    const already = col.tasks.findIndex((t) => t.id === activeId);
+    return {
+      toColId,
+      toIndex: already >= 0 ? already : col.tasks.length,
+    };
+  }
+
+  const toCol = board.find((c) => c.tasks.some((t) => t.id === overId));
+  if (!toCol) return null;
+  const overIndex = toCol.tasks.findIndex((t) => t.id === overId);
+  return {
+    toColId: toCol.id,
+    toIndex: overIndex < 0 ? toCol.tasks.length : overIndex,
+  };
+}
+
 export function KanbanBoard({
   projectId,
   boardId,
@@ -67,24 +127,29 @@ export function KanbanBoard({
 }) {
   const router = useRouter();
   const [items, setItems] = useState<ColumnLite[]>(columns);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
+  useEffect(() => {
+    setItems(columns);
+  }, [columns]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
 
-  function findContainerByTaskId(taskId: string): string | undefined {
-    return items.find((col) => col.tasks.some((t) => t.id === taskId))?.id;
-  }
-
   function findTask(taskId: string): TaskLite | undefined {
-    for (const col of items) {
+    for (const col of itemsRef.current) {
       const t = col.tasks.find((t) => t.id === taskId);
       if (t) return t;
     }
@@ -97,82 +162,64 @@ export function KanbanBoard({
 
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
-    if (!over) return;
+    if (!over || !canEdit) return;
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
+    const target = resolveDropTarget(itemsRef.current, activeIdStr, overIdStr);
+    if (!target) return;
 
-    const fromColId = findContainerByTaskId(activeIdStr);
-    if (!fromColId) return;
+    const fromCol = itemsRef.current.find((c) =>
+      c.tasks.some((t) => t.id === activeIdStr),
+    );
+    if (!fromCol) return;
+    if (fromCol.id === target.toColId) return;
 
-    // over pode ser uma coluna (id começa com "col:") ou uma tarefa
-    let toColId: string | undefined;
-
-    if (overIdStr.startsWith("col:")) {
-      toColId = overIdStr.slice(4);
-    } else {
-      toColId = findContainerByTaskId(overIdStr);
-    }
-
-    if (!toColId) return;
-    if (toColId === fromColId) return;
-
-    // Calcula índice na coluna destino baseado em onde está o over
-    const targetCol = items.find((c) => c.id === toColId);
-    const overIndex = overIdStr.startsWith("col:")
-      ? (targetCol?.tasks.length ?? 0)
-      : (targetCol?.tasks.findIndex((t) => t.id === overIdStr) ?? 0);
-
-    setItems((prev) => {
-      const next = prev.map((c) => ({ ...c, tasks: [...c.tasks] }));
-      const fromCol = next.find((c) => c.id === fromColId)!;
-      const toCol = next.find((c) => c.id === toColId)!;
-      const idx = fromCol.tasks.findIndex((t) => t.id === activeIdStr);
-      if (idx < 0) return prev;
-      const [task] = fromCol.tasks.splice(idx, 1);
-      task.columnId = toCol.id;
-      const insertAt = overIndex < 0 ? toCol.tasks.length : overIndex;
-      toCol.tasks.splice(insertAt, 0, task);
-      return next;
-    });
+    setItems((prev) =>
+      moveTaskInBoard(prev, activeIdStr, target.toColId, target.toIndex),
+    );
   }
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
-    if (!over) return;
-    const activeIdStr = String(active.id);
-
-    let toColId: string | undefined;
-    let toIndex = 0;
-
-    if (String(over.id).startsWith("col:")) {
-      toColId = String(over.id).slice(4);
-      const col = items.find((c) => c.id === toColId);
-      toIndex = col ? col.tasks.length : 0;
-    } else {
-      toColId = findContainerByTaskId(String(over.id));
-      const col = items.find((c) => c.id === toColId);
-      toIndex = col ? col.tasks.findIndex((t) => t.id === String(over.id)) : 0;
-      if (toIndex < 0) toIndex = 0;
+    if (!over || !canEdit) {
+      setItems(columns);
+      return;
     }
 
-    if (!toColId) return;
+    const activeIdStr = String(active.id);
+    const overIdStr = String(over.id);
+    const board = itemsRef.current;
+    const target = resolveDropTarget(board, activeIdStr, overIdStr);
+    if (!target) {
+      setItems(columns);
+      return;
+    }
 
-    const col = items.find((c) => c.id === toColId);
-    if (!col) return;
-    const finalIndex = col.tasks.findIndex((t) => t.id === activeIdStr);
-    if (finalIndex < 0) return;
+    const next = moveTaskInBoard(
+      board,
+      activeIdStr,
+      target.toColId,
+      target.toIndex,
+    );
+    setItems(next);
 
-    // Sincroniza o estado local e dispara a action
+    const col = next.find((c) => c.id === target.toColId);
+    const finalIndex = col?.tasks.findIndex((t) => t.id === activeIdStr) ?? 0;
+    if (finalIndex < 0) {
+      setItems(columns);
+      return;
+    }
+
     const fd = new FormData();
     fd.set("taskId", activeIdStr);
-    fd.set("columnId", toColId);
+    fd.set("columnId", target.toColId);
     fd.set("index", String(finalIndex));
 
     startTransition(async () => {
       const res = await reorderTaskAction(fd);
       if (!res.ok) {
-        // rollback: refetch do servidor
+        setItems(columns);
         router.refresh();
         alert(res.error);
       } else {
@@ -182,6 +229,7 @@ export function KanbanBoard({
   }
 
   const activeTask = activeId ? findTask(activeId) : null;
+  const columnOptions = items.map((c) => ({ id: c.id, name: c.name }));
 
   return (
     <DndContext
@@ -190,7 +238,10 @@ export function KanbanBoard({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null);
+        setItems(columns);
+      }}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {items.map((col) => (
@@ -200,11 +251,12 @@ export function KanbanBoard({
             boardId={boardId}
             column={col}
             canEdit={canEdit}
+            columns={columnOptions}
           />
         ))}
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeTask ? (
           <div className="w-72 cursor-grabbing opacity-90">
             <TaskCardContent
@@ -212,7 +264,7 @@ export function KanbanBoard({
               task={activeTask}
               canComplete={canEdit}
               isOverlay
-              columns={items.map((c) => ({ id: c.id, name: c.name }))}
+              columns={columnOptions}
             />
           </div>
         ) : null}
@@ -226,11 +278,13 @@ function KanbanColumn({
   boardId,
   column,
   canEdit,
+  columns,
 }: {
   projectId: string;
   boardId: string;
   column: ColumnLite;
   canEdit: boolean;
+  columns: Array<{ id: string; name: string }>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${column.id}` });
   const taskIds = column.tasks.map((t) => t.id);
@@ -260,13 +314,14 @@ function KanbanColumn({
       </header>
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-2 min-h-[12px]">
+        <div className="flex min-h-[48px] flex-col gap-2">
           {column.tasks.map((t) => (
             <SortableTaskCard
               key={t.id}
               projectId={projectId}
               task={t}
               canComplete={canEdit}
+              columns={columns}
             />
           ))}
           {canEdit && (
@@ -286,30 +341,39 @@ function SortableTaskCard({
   projectId,
   task,
   canComplete,
+  columns,
 }: {
   projectId: string;
   task: TaskLite;
   canComplete: boolean;
+  columns: Array<{ id: string; name: string }>;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: task.id,
-      disabled: !canComplete,
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    disabled: !canComplete,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : 1,
+    opacity: isDragging ? 0.35 : 1,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...attributes}>
       <TaskCardContent
         projectId={projectId}
         task={task}
         canComplete={canComplete}
-        columns={[]}
+        columns={columns}
+        dragHandleProps={canComplete ? listeners : undefined}
       />
     </div>
   );
@@ -321,12 +385,14 @@ function TaskCardContent({
   canComplete,
   columns,
   isOverlay = false,
+  dragHandleProps,
 }: {
   projectId: string;
   task: TaskLite;
   canComplete: boolean;
   columns: Array<{ id: string; name: string }>;
   isOverlay?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }) {
   const completed = !!task.completedAt;
   const overdue = !completed && task.dueDate && task.dueDate < new Date();
@@ -339,13 +405,23 @@ function TaskCardContent({
         isOverlay && "shadow-lg ring-2 ring-primary/40",
       )}
     >
+      {canComplete && dragHandleProps && (
+        <button
+          type="button"
+          className="mt-0.5 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          title="Arrastar"
+          aria-label="Arrastar tarefa"
+          {...dragHandleProps}
+        >
+          <GripVertical className="size-4" />
+        </button>
+      )}
       {canComplete && (
         <form action={toggleTaskCompletionAction} className="pt-1">
           <input type="hidden" name="taskId" value={task.id} />
           <button
             type="submit"
             title={completed ? "Reabrir" : "Concluir"}
-            onClick={(e) => e.stopPropagation()}
             className="text-muted-foreground hover:text-foreground"
           >
             {completed ? (
@@ -358,7 +434,6 @@ function TaskCardContent({
       )}
       <Link
         href={`/projects/${projectId}/tasks/${task.id}`}
-        onClick={(e) => e.stopPropagation()}
         className="min-w-0 flex-1"
       >
         <p
@@ -408,7 +483,7 @@ function TaskCardContent({
           )}
         </div>
       </Link>
-      {columns.length > 1 && !isOverlay && (
+      {columns.length > 1 && !isOverlay && canComplete && (
         <TaskCardMenu
           projectId={projectId}
           taskId={task.id}

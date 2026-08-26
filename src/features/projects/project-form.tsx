@@ -86,16 +86,36 @@ export function ProjectForm(props: ProjectFormProps) {
         error={state && !state.ok ? state.fieldErrors?.name : undefined}
       />
 
-      <Field
-        label="Workspace"
-        name="workspaceId"
-        as="select"
-        defaultValue={initial?.workspaceId ?? props.workspaces[0]?.id}
-        options={props.workspaces.map((w) => ({ value: w.id, label: w.name }))}
-        disabled={props.mode === "edit"}
-        error={state && !state.ok ? state.fieldErrors?.workspaceId : undefined}
-      />
-
+      {props.mode === "edit" && initial?.workspaceId ? (
+        <>
+          <input type="hidden" name="workspaceId" value={initial.workspaceId} />
+          <Field
+            label="Workspace"
+            name="workspaceIdDisplay"
+            as="select"
+            defaultValue={initial.workspaceId}
+            options={props.workspaces.map((w) => ({
+              value: w.id,
+              label: w.name,
+            }))}
+            disabled
+          />
+        </>
+      ) : (
+        <Field
+          label="Workspace"
+          name="workspaceId"
+          as="select"
+          defaultValue={initial?.workspaceId ?? props.workspaces[0]?.id}
+          options={props.workspaces.map((w) => ({
+            value: w.id,
+            label: w.name,
+          }))}
+          error={
+            state && !state.ok ? state.fieldErrors?.workspaceId : undefined
+          }
+        />
+      )}
       <Field
         label="Descrição"
         name="description"

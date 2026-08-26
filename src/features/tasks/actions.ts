@@ -85,6 +85,8 @@ export async function createQuickTaskAction(
         priority: parsed.data.priority,
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
         createdBy: user.id,
+        // Quem cria fica responsável — aparece em "Minhas tarefas"
+        assigneeIds: [user.id],
       },
     );
     revalidatePath(`/projects/${parsed.data.projectId}`);
@@ -149,11 +151,40 @@ export async function updateTaskDetailsAction(
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, projectId: true },
+    select: { id: true, projectId: true, project: { select: { workspaceId: true } } },
   });
   if (!task) return { ok: false, error: "Tarefa não encontrada." };
 
   try {
+    await assertProjectEditAccess(user.id, task.projectId);
+
+    const allowedUsers = await prisma.user.findMany({
+      where: {
+        active: true,
+        OR: [
+          {
+            projectMembers: { some: { projectId: task.projectId } },
+          },
+          {
+            workspaceMembers: {
+              some: { workspaceId: task.project.workspaceId },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    const allowed = new Set(allowedUsers.map((u) => u.id));
+    const requested = parsed.data.assigneeIds ?? [];
+    const invalid = requested.filter((id) => !allowed.has(id));
+    if (invalid.length > 0) {
+      return {
+        ok: false,
+        error:
+          "Um ou mais responsáveis não têm acesso a este projeto/workspace.",
+      };
+    }
+
     await taskService.update(
       { userId: user.id, actorType: "USER", workspaceId: undefined },
       taskId,
@@ -173,7 +204,7 @@ export async function updateTaskDetailsAction(
       select: { userId: true },
     });
     const current = new Set(currentAssignees.map((a) => a.userId));
-    const next = new Set(parsed.data.assigneeIds ?? []);
+    const next = new Set(requested);
     const toAdd = [...next].filter((u) => !current.has(u));
     const toRemove = [...current].filter((u) => !next.has(u));
 

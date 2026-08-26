@@ -64,7 +64,6 @@ export default async function DashboardLayout({
         <nav className="flex flex-1 flex-col gap-1 p-3 text-sm">
           {navItem("/dashboard", "Dashboard")}
           {navItem("/projects", "Projetos")}
-          {navItem("/tasks", "Buscar tarefas")}
           {navItem("/my-tasks", "Minhas tarefas")}
           <div className="my-2 h-px bg-border" />
           <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">

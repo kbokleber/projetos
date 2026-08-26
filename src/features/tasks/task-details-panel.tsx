@@ -173,21 +173,38 @@ export function TaskDetailsPanel(props: {
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm">Responsáveis</label>
-          <div className="grid gap-1.5 rounded-md border border-input bg-background p-2 sm:grid-cols-2">
-            {members.map((m) => (
-              <label key={m.userId} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="assigneeIds"
-                  value={m.userId}
-                  defaultChecked={currentAssigneeIds.includes(m.userId)}
-                  disabled={!canEdit}
-                  className="size-4 rounded border-input"
-                />
-                <span className="truncate">{m.name ?? m.email}</span>
-              </label>
-            ))}
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Pessoas com acesso a este projeto (membros do projeto ou do
+            workspace). Marque quantas quiser.
+          </p>
+          {members.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+              Nenhum membro disponível. Convide usuários ao workspace ou ao
+              projeto.
+            </p>
+          ) : (
+            <div className="grid max-h-48 gap-1.5 overflow-y-auto rounded-md border border-input bg-background p-2 sm:grid-cols-2">
+              {members.map((m) => (
+                <label
+                  key={m.userId}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    name="assigneeIds"
+                    value={m.userId}
+                    defaultChecked={currentAssigneeIds.includes(m.userId)}
+                    disabled={!canEdit}
+                    className="size-4 rounded border-input"
+                  />
+                  <span className="min-w-0 truncate">
+                    {m.name ?? m.email}
+                    {m.userId === currentUserId ? " (você)" : ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-3">
