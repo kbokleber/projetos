@@ -4,8 +4,10 @@ import Link from "next/link";
 import { dateBR } from "@/lib/format-date";
 import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { isCompletionColumnName } from "@/lib/task-completion";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
+import type { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,17 @@ export default async function MyTasksPage({
       ? statusRaw
       : "open";
 
+  const doneColumnIds = active
+    ? (
+        await prisma.boardColumn.findMany({
+          where: { board: { project: { workspaceId: active.id } } },
+          select: { id: true, name: true },
+        })
+      )
+        .filter((c) => isCompletionColumnName(c.name))
+        .map((c) => c.id)
+    : [];
+
   const projects = active
     ? await prisma.project.findMany({
         where: {
@@ -47,41 +60,52 @@ export default async function MyTasksPage({
       })
     : [];
 
-  const tasks = await prisma.task.findMany({
-    where: {
-      ...(status === "completed"
-        ? { archivedAt: null, completedAt: { not: null } }
-        : status === "all"
-          ? { archivedAt: null }
-          : { archivedAt: null, completedAt: null }),
-      project: {
-        archivedAt: null,
-        ...(active ? { workspaceId: active.id } : {}),
-        ...(projectId ? { id: projectId } : {}),
-      },
-      // Relacionadas a você: responsável ou criador
-      OR: [
-        { assignees: { some: { userId: session.user.id } } },
-        { createdBy: session.user.id },
-      ],
-      ...(q
-        ? {
-            AND: [
-              {
-                OR: [
-                  { title: { contains: q, mode: "insensitive" as const } },
-                  {
-                    description: {
-                      contains: q,
-                      mode: "insensitive" as const,
-                    },
-                  },
-                ],
-              },
-            ],
-          }
-        : {}),
+  const where: Prisma.TaskWhereInput = {
+    project: {
+      archivedAt: null,
+      ...(active ? { workspaceId: active.id } : {}),
+      ...(projectId ? { id: projectId } : {}),
     },
+    OR: [
+      { assignees: { some: { userId: session.user.id } } },
+      { createdBy: session.user.id },
+    ],
+  };
+
+  if (status === "completed") {
+    where.archivedAt = null;
+    where.AND = [
+      {
+        OR: [
+          { completedAt: { not: null } },
+          ...(doneColumnIds.length > 0
+            ? [{ columnId: { in: doneColumnIds } }]
+            : []),
+        ],
+      },
+    ];
+  } else if (status === "all") {
+    where.archivedAt = null;
+  } else {
+    where.archivedAt = null;
+    where.completedAt = null;
+    if (doneColumnIds.length > 0) {
+      where.columnId = { notIn: doneColumnIds };
+    }
+  }
+
+  if (q) {
+    const textFilter: Prisma.TaskWhereInput = {
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+      ],
+    };
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), textFilter];
+  }
+
+  const tasks = await prisma.task.findMany({
+    where,
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
     take: 150,
     include: {

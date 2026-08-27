@@ -21,14 +21,14 @@ export function SummaryCards(props: {
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Card href="/projects" icon={<ListChecks className="size-4" />} label="Projetos ativos" value={props.projectsActive} />
       <Card
-        href="/my-tasks?status=open"
+        href="/tasks?status=open"
         icon={<CircleDashed className="size-4" />}
         label="Tarefas em aberto"
         value={props.tasksOpen}
       />
       <Card icon={<CheckCircle2 className="size-4" />} label="Concluídas hoje" value={props.tasksCompletedToday} tone="positive" />
       <Card
-        href="/my-tasks?filter=overdue"
+        href="/tasks?status=open&overdue=1"
         icon={<AlertTriangle className="size-4" />}
         label="Tarefas atrasadas"
         value={props.tasksOverdue}
