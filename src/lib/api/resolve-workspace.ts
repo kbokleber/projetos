@@ -140,3 +140,49 @@ export async function resolveTaskAccessForApi(opts: {
     projectId: task.projectId,
   };
 }
+
+/**
+ * Garante que o usuário do token pode acessar a reunião (membro do workspace do projeto).
+ */
+export async function resolveMeetingAccessForApi(opts: {
+  userId: string | null;
+  meetingId: string;
+}) {
+  if (!opts.userId) {
+    throw new AppError("FORBIDDEN", "Usuário não associado ao token.", 403);
+  }
+
+  const meeting = await prisma.meeting.findUnique({
+    where: { id: opts.meetingId },
+    select: {
+      id: true,
+      projectId: true,
+      project: { select: { id: true, workspaceId: true, name: true } },
+    },
+  });
+  if (!meeting) {
+    throw new AppError("NOT_FOUND", "Reunião não encontrada.", 404);
+  }
+
+  const member = await prisma.workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId: meeting.project.workspaceId,
+        userId: opts.userId,
+      },
+    },
+    select: { id: true },
+  });
+  if (!member) {
+    throw new AppError(
+      "FORBIDDEN",
+      "Sem acesso ao workspace desta reunião.",
+      403,
+    );
+  }
+
+  return {
+    workspaceId: meeting.project.workspaceId,
+    projectId: meeting.projectId,
+  };
+}

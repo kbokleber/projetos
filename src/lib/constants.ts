@@ -25,6 +25,8 @@ export const API_SCOPES = [
   "projects:write",
   "tasks:read",
   "tasks:write",
+  "meetings:read",
+  "meetings:write",
   "comments:read",
   "comments:write",
   "members:read",

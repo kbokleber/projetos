@@ -93,3 +93,46 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* TipTap / ATAs */
+.prose-meeting {
+  line-height: 1.7;
+}
+.prose-meeting p {
+  margin: 0.75em 0;
+}
+.prose-meeting h2 {
+  margin: 1.25em 0 0.5em;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.prose-meeting h3 {
+  margin: 1em 0 0.4em;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.prose-meeting strong {
+  font-weight: 650;
+}
+.prose-meeting ul {
+  margin: 0.5em 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.prose-meeting ol {
+  margin: 0.5em 0;
+  padding-left: 1.25rem;
+  list-style: decimal;
+}
+.prose-meeting a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.prose-meeting p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

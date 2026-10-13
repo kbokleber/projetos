@@ -57,6 +57,10 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-change-me-in-coolify-use-openssl-rand}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      STORAGE_LOCAL_DIR: ${STORAGE_LOCAL_DIR:-/app/uploads}
+    volumes:
+      - uploads-data:/app/uploads
     # Só expose — o Coolify/Traefik faz o proxy. NÃO publique 3000 no host.
     expose:
       - "3000"
@@ -77,3 +81,4 @@ services:
 
 volumes:
   postgres-data:
+  uploads-data:

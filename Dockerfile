@@ -62,7 +62,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Precisa do path @/generated — o script usa caminho relativo.
 
 COPY --chown=nextjs:nodejs docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && mkdir -p /app/uploads \
+ && chown nextjs:nodejs /app/uploads
 
 USER nextjs
 EXPOSE 3000

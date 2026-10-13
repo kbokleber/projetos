@@ -42,6 +42,10 @@ yarn-error.log*
 prisma/dev.db
 prisma/dev.db-journal
 
+# anexos enviados (storage local)
+/uploads
+!/uploads/.gitkeep
+
 # vercel
 .vercel
 

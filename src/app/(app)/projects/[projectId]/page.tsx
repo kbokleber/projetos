@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { KanbanBoard } from "@/features/tasks/kanban-board";
 import { MembersManager } from "@/features/projects/members-manager";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Pencil, Settings, Users2, LayoutDashboard, ListChecks } from "lucide-react";
+import { ArrowLeft, Pencil, Settings, Users2, LayoutDashboard, ListChecks, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dateBR, dateTimeBR } from "@/lib/format-date";
 
@@ -85,6 +85,7 @@ export default async function ProjectDetailPage({
         select: {
           tasks: { where: { archivedAt: null } },
           activities: true,
+          meetings: true,
         },
       },
     },
@@ -181,6 +182,13 @@ export default async function ProjectDetailPage({
           {tabLink("board", "Board", LayoutDashboard)}
           {tabLink("overview", "Overview", ListChecks)}
           {tabLink("members", `Membros (${project.members.length})`, Users2)}
+          <Link
+            href={`/projects/${projectId}/meetings`}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <FileText className="size-3.5" />
+            ATAs ({project._count.meetings})
+          </Link>
         </nav>
       </header>
 
@@ -284,7 +292,7 @@ function Overview({
     startDate: Date | null;
     dueDate: Date | null;
     createdAt: Date;
-    _count: { tasks: number; activities: number };
+    _count: { tasks: number; activities: number; meetings: number };
     members: Array<{
       role: string;
       user: { id: string; name: string | null; email: string };
@@ -334,6 +342,10 @@ function Overview({
           <li className="flex justify-between">
             <span className="text-muted-foreground">Eventos</span>
             <span className="font-mono">{project._count.activities}</span>
+          </li>
+          <li className="flex justify-between">
+            <span className="text-muted-foreground">ATAs</span>
+            <span className="font-mono">{project._count.meetings}</span>
           </li>
           <li className="flex justify-between">
             <span className="text-muted-foreground">Membros</span>

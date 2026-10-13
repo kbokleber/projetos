@@ -37,6 +37,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { dateBR } from "@/lib/format-date";
+import { isCompletionColumnName } from "@/lib/task-completion";
 import {
   toggleTaskCompletionAction,
   reorderTaskAction,
@@ -141,6 +142,12 @@ function moveTaskInBoard(
   if (fromIdx < 0) return board;
   const [task] = fromCol.tasks.splice(fromIdx, 1);
   task.columnId = toCol.id;
+  // Ao entrar em Concluído, grava a data; ao sair, reabre
+  if (isCompletionColumnName(toCol.name)) {
+    task.completedAt = task.completedAt ?? new Date();
+  } else {
+    task.completedAt = null;
+  }
 
   let insertAt = toIndex;
   if (fromCol.id === toCol.id && fromIdx < insertAt) {
@@ -546,7 +553,7 @@ function TaskCardContent({
           >
             {task.priority}
           </span>
-          {task.dueDate && (
+          {task.dueDate && !completed && (
             <span
               className={cn(
                 "inline-flex items-center gap-1",
@@ -559,6 +566,15 @@ function TaskCardContent({
                 <CalendarDays className="size-3" />
               )}
               {dateBR(task.dueDate)}
+            </span>
+          )}
+          {completed && task.completedAt && (
+            <span
+              className="inline-flex items-center gap-1 text-emerald-700"
+              title="Data de conclusão"
+            >
+              <CircleCheck className="size-3" />
+              {dateBR(task.completedAt)}
             </span>
           )}
           {task.assignees.length > 0 && (

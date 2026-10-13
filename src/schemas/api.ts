@@ -154,3 +154,41 @@ export const taskAssigneeParamsSchema = z.object({
 export const createCommentSchema = z.object({
   content: z.string().min(1).max(8000),
 });
+
+export const listMeetingsQuerySchema = z.object({
+  projectId: cuid.optional(),
+  type: z.enum(["ATA", "DAILY", "HANDS_ON"]).optional(),
+  published: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+  integrationId: z.string().max(200).optional(),
+  search: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().max(200).optional(),
+});
+
+export const createMeetingSchema = z.object({
+  projectId: cuid,
+  title: z.string().min(1).max(200),
+  type: z.enum(["ATA", "DAILY", "HANDS_ON"]).optional().default("ATA"),
+  heldAt: dateLike,
+  integrationId: z.string().max(200).optional().nullable(),
+  description: z.string().max(500_000).optional().default(""),
+  published: z.boolean().optional().default(false),
+  memberIds: z.array(cuid).optional().default([]),
+  guests: z.array(z.string().trim().min(1).max(120)).optional().default([]),
+});
+
+export const updateMeetingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  type: z.enum(["ATA", "DAILY", "HANDS_ON"]).optional(),
+  heldAt: dateLike.optional(),
+  integrationId: z.string().max(200).optional().nullable(),
+  description: z.string().max(500_000).optional(),
+  published: z.boolean().optional(),
+  memberIds: z.array(cuid).optional(),
+  guests: z.array(z.string().trim().min(1).max(120)).optional(),
+});
+
+export const meetingParamsSchema = z.object({ meetingId: cuid });

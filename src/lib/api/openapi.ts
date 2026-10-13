@@ -19,8 +19,11 @@ Token gerado em **/settings/api**.
 | Criar/editar projetos | \`projects:write\` |
 | Listar/ler tarefas | \`tasks:read\` |
 | **Criar / editar (PATCH) / mover / arquivar tarefas** | **\`tasks:write\`** |
+| Listar/ler ATAs e reuniões | \`meetings:read\` |
+| **Criar / editar / excluir ATAs** | **\`meetings:write\`** |
 
-Sem \`tasks:write\`, \`PATCH /tasks/{id}\` retorna **403** (Escopo insuficiente).
+Sem \`tasks:write\`, \`PATCH /tasks/{id}\` retorna **403** (Escopo insuficiente).  
+Sem \`meetings:write\`, \`POST/PATCH/DELETE /meetings\` retorna **403**.
 
 ### Workspaces (importante)
 Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em **qualquer workspace** do qual seja membro (incluindo editar tarefas desses workspaces).
@@ -68,7 +71,7 @@ export const openapiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Sistema de Projetos — API Pública",
-    version: "1.2.0",
+    version: "1.3.0",
     description: API_GUIDE,
   },
   servers: [{ url: `${server}/api/v1`, description: "Servidor atual" }],
@@ -301,6 +304,72 @@ export const openapiSpec = {
           updatedAt: { type: "string", format: "date-time" },
         },
       },
+      Meeting: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          projectId: { type: "string" },
+          title: { type: "string" },
+          type: { type: "string", enum: ["ATA", "DAILY", "HANDS_ON"] },
+          heldAt: { type: "string", format: "date-time" },
+          integrationId: {
+            type: ["string", "null"],
+            description: "ID externo (ex.: Granola)",
+          },
+          description: {
+            type: "string",
+            description: "HTML da ata (rich text)",
+          },
+          published: {
+            type: "boolean",
+            description: "Se true, há shared link público",
+          },
+          shareToken: { type: ["string", "null"] },
+          createdBy: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      CreateMeeting: {
+        type: "object",
+        required: ["projectId", "title", "heldAt"],
+        properties: {
+          projectId: { type: "string" },
+          title: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["ATA", "DAILY", "HANDS_ON"],
+            default: "ATA",
+          },
+          heldAt: { type: "string", format: "date-time" },
+          integrationId: { type: ["string", "null"] },
+          description: { type: "string", description: "HTML da reunião" },
+          published: { type: "boolean", default: false },
+          memberIds: {
+            type: "array",
+            items: { type: "string" },
+            description: "IDs de membros do projeto",
+          },
+          guests: {
+            type: "array",
+            items: { type: "string" },
+            description: "Nomes de convidados externos",
+          },
+        },
+      },
+      UpdateMeeting: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          type: { type: "string", enum: ["ATA", "DAILY", "HANDS_ON"] },
+          heldAt: { type: "string", format: "date-time" },
+          integrationId: { type: ["string", "null"] },
+          description: { type: "string" },
+          published: { type: "boolean" },
+          memberIds: { type: "array", items: { type: "string" } },
+          guests: { type: "array", items: { type: "string" } },
+        },
+      },
     },
   },
   security: [{ bearerAuth: [] }],
@@ -318,6 +387,11 @@ export const openapiSpec = {
     { name: "boards" },
     { name: "columns" },
     { name: "tasks" },
+    {
+      name: "meetings",
+      description:
+        "ATAs e reuniões (ATA, Daily, Hands On). Requer escopos `meetings:read` / `meetings:write`.",
+    },
     { name: "comments" },
   ],
   paths: {
@@ -640,6 +714,106 @@ export const openapiSpec = {
           },
         },
         responses: { "201": { description: "OK" } },
+      },
+    },
+    "/meetings": {
+      get: {
+        tags: ["meetings"],
+        summary: "Lista ATAs e reuniões",
+        description:
+          "Requer `meetings:read`. Filtre por `projectId`, `type`, `published`, `integrationId` (Granola) ou `search`.",
+        operationId: "listMeetings",
+        parameters: [
+          { name: "projectId", in: "query", schema: { type: "string" } },
+          {
+            name: "type",
+            in: "query",
+            schema: { type: "string", enum: ["ATA", "DAILY", "HANDS_ON"] },
+          },
+          {
+            name: "published",
+            in: "query",
+            schema: { type: "string", enum: ["true", "false"] },
+          },
+          { name: "integrationId", in: "query", schema: { type: "string" } },
+          { name: "search", in: "query", schema: { type: "string" } },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 50, maximum: 100 },
+          },
+          { name: "cursor", in: "query", schema: { type: "string" } },
+        ],
+        responses: { "200": { description: "OK" } },
+      },
+      post: {
+        tags: ["meetings"],
+        summary: "Cria ATA / reunião",
+        description: "Requer `meetings:write`.",
+        operationId: "createMeeting",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateMeeting" },
+              example: {
+                projectId: "cmxxxxxxxx",
+                title: "Service IT - Transição GLPI",
+                type: "ATA",
+                heldAt: "2026-09-30T14:00:00.000Z",
+                integrationId: "granola_abc123",
+                description: "<h2>Resumo</h2><p>Discussão…</p>",
+                published: false,
+                memberIds: [],
+                guests: ["Vanessa", "Angelo"],
+              },
+            },
+          },
+        },
+        responses: { "201": { description: "Reunião criada" } },
+      },
+    },
+    "/meetings/{meetingId}": {
+      parameters: [
+        {
+          name: "meetingId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      get: {
+        tags: ["meetings"],
+        summary: "Detalhe da ATA / reunião",
+        description: "Requer `meetings:read`.",
+        operationId: "getMeeting",
+        responses: { "200": { description: "OK" } },
+      },
+      patch: {
+        tags: ["meetings"],
+        summary: "Atualiza ATA / reunião (parcial)",
+        description:
+          "Requer `meetings:write`. Envie só os campos a alterar. Se enviar `memberIds` ou `guests`, a lista de participantes é substituída.",
+        operationId: "updateMeeting",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdateMeeting" },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Reunião atualizada" },
+          "403": { description: "Escopo insuficiente ou sem acesso" },
+        },
+      },
+      delete: {
+        tags: ["meetings"],
+        summary: "Exclui ATA / reunião",
+        description: "Requer `meetings:write`.",
+        operationId: "deleteMeeting",
+        responses: { "204": { description: "Sem conteúdo" } },
       },
     },
   },

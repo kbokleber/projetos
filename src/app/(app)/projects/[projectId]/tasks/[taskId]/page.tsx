@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { TaskDetailsPanel } from "@/features/tasks/task-details-panel";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { dateTimeBR } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +60,18 @@ export default async function TaskDetailPage({
         take: 50,
         include: {
           user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        },
+      },
+      attachments: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+      },
+      checklists: {
+        orderBy: { position: "asc" },
+        include: {
+          items: { orderBy: { position: "asc" } },
         },
       },
     },
@@ -132,43 +143,27 @@ export default async function TaskDetailPage({
   const columns = board?.columns ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
           <Link href="/projects" className="hover:text-foreground">
             Projetos
           </Link>
           <span>/</span>
           <Link
             href={`/projects/${project.id}`}
-            className="hover:text-foreground"
+            className="truncate hover:text-foreground"
           >
             {project.name}
           </Link>
           <span>/</span>
-          <span className="truncate text-foreground">{task.title}</span>
+          <span className="truncate text-foreground/80">Tarefa</span>
         </nav>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {task.title}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {task.column.name} · {task.priority} ·{" "}
-              {task.completedAt ? (
-                <span className="text-emerald-600">concluída</span>
-              ) : (
-                "em aberto"
-              )}{" "}
-              · criada em {dateTimeBR(task.createdAt)}
-            </p>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/projects/${project.id}`}>
-              <ArrowLeft className="size-3.5" /> Voltar ao board
-            </Link>
-          </Button>
-        </div>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/projects/${project.id}`}>
+            <ArrowLeft className="size-3.5" /> Board
+          </Link>
+        </Button>
       </div>
 
       <TaskDetailsPanel
@@ -188,12 +183,30 @@ export default async function TaskDetailPage({
           dueDate: task.dueDate,
           estimatedHours: task.estimatedHours,
           completedAt: task.completedAt,
+          archivedAt: task.archivedAt,
         }}
         comments={task.comments.map((c) => ({
           id: c.id,
           content: c.content,
           createdAt: c.createdAt,
           user: c.user,
+        }))}
+        attachments={task.attachments.map((a) => ({
+          id: a.id,
+          fileName: a.fileName,
+          mimeType: a.mimeType,
+          size: a.size,
+          createdAt: a.createdAt,
+          user: a.user,
+        }))}
+        checklists={task.checklists.map((c) => ({
+          id: c.id,
+          title: c.title,
+          items: c.items.map((i) => ({
+            id: i.id,
+            description: i.description,
+            completed: i.completed,
+          })),
         }))}
         currentUserId={session.user.id}
       />

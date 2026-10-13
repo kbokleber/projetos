@@ -79,7 +79,7 @@ export function TaskCard({
           >
             {task.priority}
           </span>
-          {task.dueDate && (
+          {task.dueDate && !completed && (
             <span
               className={
                 "inline-flex items-center gap-1 " +
@@ -92,6 +92,15 @@ export function TaskCard({
                 <CalendarDays className="size-3" />
               )}
               {dateBR(task.dueDate)}
+            </span>
+          )}
+          {completed && task.completedAt && (
+            <span
+              className="inline-flex items-center gap-1 text-emerald-700"
+              title="Data de conclusão"
+            >
+              <CircleCheck className="size-3" />
+              {dateBR(task.completedAt)}
             </span>
           )}
           {task.assignees.length > 0 && (

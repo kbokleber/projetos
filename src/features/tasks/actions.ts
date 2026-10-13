@@ -109,9 +109,9 @@ export async function toggleTaskCompletionAction(formData: FormData) {
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, completedAt: true, projectId: true },
+    select: { id: true, completedAt: true, archivedAt: true, projectId: true },
   });
-  if (!task) return;
+  if (!task || task.archivedAt) return;
 
   const completed = !task.completedAt;
   await taskService.update(
@@ -151,9 +151,19 @@ export async function updateTaskDetailsAction(
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, projectId: true, project: { select: { workspaceId: true } } },
+    select: {
+      id: true,
+      projectId: true,
+      completedAt: true,
+      archivedAt: true,
+      description: true,
+      project: { select: { workspaceId: true } },
+    },
   });
   if (!task) return { ok: false, error: "Tarefa não encontrada." };
+  if (task.archivedAt) {
+    return { ok: false, error: "Tarefa arquivada: somente leitura." };
+  }
 
   try {
     await assertProjectEditAccess(user.id, task.projectId);
@@ -185,12 +195,18 @@ export async function updateTaskDetailsAction(
       };
     }
 
+    // Concluída/arquivada: notas ficam congeladas até reabrir
+    const contentLocked = !!task.completedAt;
+    const nextDescription = contentLocked
+      ? task.description
+      : (parsed.data.description ?? null);
+
     await taskService.update(
       { userId: user.id, actorType: "USER", workspaceId: undefined },
       taskId,
       {
         title: parsed.data.title,
-        description: parsed.data.description ?? null,
+        description: nextDescription,
         priority: parsed.data.priority,
         startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
@@ -409,6 +425,15 @@ export async function createCommentAction(
     include: { project: { select: { id: true, workspaceId: true } } },
   });
   if (!taskWithProject) return { ok: false, error: "Tarefa não encontrada." };
+  if (taskWithProject.archivedAt) {
+    return { ok: false, error: "Tarefa arquivada: somente leitura." };
+  }
+  if (taskWithProject.completedAt) {
+    return {
+      ok: false,
+      error: "Reabra a tarefa para adicionar comentários.",
+    };
+  }
 
   await prisma.comment.create({
     data: { taskId, userId: user.id, content: parsed.data.content },

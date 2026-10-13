@@ -52,6 +52,12 @@ enum ActorType {
   SYSTEM
 }
 
+enum MeetingType {
+  ATA
+  DAILY
+  HANDS_ON
+}
+
 // ─── User & Auth ─────────────────────────────────────────────────────────────
 
 model User {
@@ -75,6 +81,8 @@ model User {
   checklistsDone   ChecklistItem[]   @relation("ChecklistItemCompletedBy")
   createdProjects  Project[]         @relation("ProjectCreator")
   createdTasks     Task[]            @relation("TaskCreator")
+  createdMeetings  Meeting[]         @relation("MeetingCreator")
+  meetingParticipants MeetingParticipant[]
   apiTokens        ApiToken[]
   passwordResets   PasswordResetToken[]
 
@@ -157,10 +165,51 @@ model Project {
   labels    Label[]
   tasks     Task[]
   activities Activity[]
+  meetings  Meeting[]
 
   @@index([workspaceId])
   @@index([createdBy])
   @@index([status])
+}
+
+// ─── Reuniões / ATAs ─────────────────────────────────────────────────────────
+
+model Meeting {
+  id            String      @id @default(cuid())
+  projectId     String
+  title         String
+  type          MeetingType @default(ATA)
+  heldAt        DateTime
+  integrationId String?
+  description   String      @default("")
+  published     Boolean     @default(false)
+  shareToken    String?     @unique
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator      User                 @relation("MeetingCreator", fields: [createdBy], references: [id])
+  participants MeetingParticipant[]
+
+  @@index([projectId])
+  @@index([projectId, heldAt])
+  @@index([integrationId])
+  @@index([shareToken])
+}
+
+model MeetingParticipant {
+  id        String  @id @default(cuid())
+  meetingId String
+  userId    String?
+  guestName String?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([userId])
 }
 
 model ProjectMember {
