@@ -13,6 +13,8 @@ const SCOPE_LABELS: Record<string, string> = {
   "projects:write": "Projetos · escrita",
   "tasks:read": "Tarefas · leitura",
   "tasks:write": "Tarefas · escrita (criar/editar/mover)",
+  "meetings:read": "ATAs · leitura",
+  "meetings:write": "ATAs · escrita (criar/editar/excluir)",
   "comments:read": "Comentários · leitura",
   "comments:write": "Comentários · escrita",
   "members:read": "Membros · leitura",
@@ -20,12 +22,14 @@ const SCOPE_LABELS: Record<string, string> = {
   "webhooks:write": "Webhooks · escrita",
 };
 
-/** Escopos recomendados para IAs (inclui PATCH de tarefas). */
+/** Escopos recomendados para IAs (tarefas + ATAs). */
 const AI_DEFAULT_SCOPES = new Set([
   "projects:read",
   "projects:write",
   "tasks:read",
   "tasks:write",
+  "meetings:read",
+  "meetings:write",
   "comments:read",
   "comments:write",
 ]);
@@ -60,9 +64,12 @@ export function CreateTokenForm() {
     <section className="rounded-xl border border-border bg-card p-4">
       <h2 className="text-sm font-medium">Novo token</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Para a IA editar tarefas (PATCH), o token precisa incluir{" "}
-        <code className="font-mono">tasks:write</code>. Os escopos recomendados
-        para IA já vêm marcados.
+        ATAs e Projetos são escopos separados: para a IA ler/criar ATAs, marque{" "}
+        <strong>ATAs · leitura</strong> e <strong>ATAs · escrita</strong>{" "}
+        (<code className="font-mono">meetings:read</code> /{" "}
+        <code className="font-mono">meetings:write</code>). Para tarefas, use{" "}
+        <code className="font-mono">tasks:write</code>. O preset{" "}
+        <em>Recomendado IA</em> já inclui ambos.
       </p>
       <form action={action} className="mt-3 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">

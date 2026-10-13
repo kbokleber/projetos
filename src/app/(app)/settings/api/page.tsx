@@ -59,14 +59,13 @@ export default async function SettingsApiPage() {
           completo é mostrado uma única vez.
         </p>
         <p className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Para a IA criar/editar tarefas, o token precisa de{" "}
-          <code className="font-mono">tasks:write</code> (já vem marcado em
-          &quot;Recomendado IA&quot;). Exemplo PATCH:{" "}
-          <code className="font-mono">
-            {`PATCH /api/v1/tasks/{id} {"priority":"HIGH"}`}
-          </code>
-          . Tokens antigos sem esse escopo devem ser revogados e gerados de
-          novo. Liste workspaces em{" "}
+          Escopos separados: tarefas usam{" "}
+          <code className="font-mono">tasks:write</code>; ATAs usam{" "}
+          <code className="font-mono">meetings:read</code> /{" "}
+          <code className="font-mono">meetings:write</code> (não bastam os de
+          Projetos). Ambos já vêm em &quot;Recomendado IA&quot;. Tokens antigos
+          sem esses escopos devem ser revogados e gerados de novo. Liste
+          workspaces em{" "}
           <code className="font-mono">GET /api/v1/workspaces</code>.
         </p>
       </div>
