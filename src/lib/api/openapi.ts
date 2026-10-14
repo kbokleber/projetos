@@ -45,7 +45,21 @@ Content-Type: application/json
 { "priority": "HIGH" }
 \`\`\`
 
-Outros campos opcionais no PATCH: \`title\`, \`description\`, \`dueDate\`, \`completed\`, \`columnId\`, \`archived\`, etc. Envie **apenas** o que deseja alterar.
+Outros campos opcionais no PATCH: \`title\`, \`description\`, \`dueDate\`, \`completed\`, \`columnId\`, \`archived\`, \`checklistItems\`, etc. Envie **apenas** o que deseja alterar.
+
+### Checklist na tarefa
+\`POST /tasks\` e \`PATCH /tasks/{id}\` aceitam \`checklistItems\`:
+
+\`\`\`json
+{
+  "checklistItems": [
+    { "description": "Validar DNS", "completed": false },
+    { "description": "Atualizar registros", "completed": true }
+  ]
+}
+\`\`\`
+
+No PATCH, o array **substitui** a lista inteira. Use \`[]\` para limpar. O GET da tarefa retorna \`checklists[].items\`.
 
 ### Exemplo: criar projeto no Cleartech
 \`\`\`http
@@ -71,7 +85,7 @@ export const openapiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Sistema de Projetos — API Pública",
-    version: "1.3.0",
+    version: "1.4.0",
     description: API_GUIDE,
   },
   servers: [{ url: `${server}/api/v1`, description: "Servidor atual" }],
@@ -249,6 +263,22 @@ export const openapiSpec = {
           archived: { type: "boolean" },
         },
       },
+      ChecklistItemInput: {
+        type: "object",
+        required: ["description"],
+        properties: {
+          description: {
+            type: "string",
+            maxLength: 500,
+            description: "Texto do item da lista de verificação",
+          },
+          completed: {
+            type: "boolean",
+            default: false,
+            description: "Se o item já está concluído",
+          },
+        },
+      },
       CreateTask: {
         type: "object",
         required: ["projectId", "boardId", "columnId", "title"],
@@ -266,6 +296,12 @@ export const openapiSpec = {
           externalId: { type: "string" },
           externalSource: { type: "string" },
           assigneeIds: { type: "array", items: { type: "string" } },
+          checklistItems: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ChecklistItemInput" },
+            description:
+              "Itens da lista de verificação criados junto com a tarefa",
+          },
         },
       },
       UpdateTask: {
@@ -283,6 +319,12 @@ export const openapiSpec = {
           archived: { type: "boolean" },
           externalId: { type: "string" },
           externalSource: { type: "string" },
+          checklistItems: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ChecklistItemInput" },
+            description:
+              "Quando enviado, substitui toda a lista de verificação. Use [] para limpar.",
+          },
         },
       },
       MoveTask: {
@@ -605,12 +647,26 @@ export const openapiSpec = {
         tags: ["tasks"],
         summary: "Cria tarefa",
         description:
-          "Suporta o header `Idempotency-Key` para evitar duplicações em retries do cliente.",
+          "Requer `tasks:write`. Aceita `checklistItems` para criar a lista de verificação na mesma chamada. Suporta o header `Idempotency-Key`.",
         requestBody: {
           required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/CreateTask" } } },
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateTask" },
+              example: {
+                projectId: "cmproj",
+                boardId: "cmboard",
+                columnId: "cmcol",
+                title: "Migrar DNS",
+                checklistItems: [
+                  { description: "Validar zona atual", completed: false },
+                  { description: "Atualizar registros A", completed: false },
+                ],
+              },
+            },
+          },
         },
-        responses: { "201": { description: "Tarefa criada" } },
+        responses: { "201": { description: "Tarefa criada (inclui checklists)" } },
       },
     },
     "/tasks/{taskId}": {
@@ -618,14 +674,15 @@ export const openapiSpec = {
       get: {
         tags: ["tasks"],
         summary: "Detalhe de tarefa",
-        description: "Requer escopo `tasks:read`.",
+        description:
+          "Requer escopo `tasks:read`. Inclui `checklists` com `items`.",
         responses: { "200": { description: "OK" } },
       },
       patch: {
         tags: ["tasks"],
         summary: "Atualiza tarefa (parcial)",
         description:
-          "Requer escopo `tasks:write`. Envie só os campos a alterar. Ex.: `{ \"priority\": \"HIGH\" }` ou `{ \"title\": \"...\", \"dueDate\": \"2026-09-01T00:00:00.000Z\" }`.",
+          "Requer escopo `tasks:write`. Envie só os campos a alterar. `checklistItems` substitui toda a lista de verificação.",
         operationId: "updateTask",
         requestBody: {
           required: true,
@@ -647,6 +704,15 @@ export const openapiSpec = {
                 complete: {
                   summary: "Marcar como concluída",
                   value: { completed: true },
+                },
+                checklist: {
+                  summary: "Substituir checklist",
+                  value: {
+                    checklistItems: [
+                      { description: "Item A", completed: true },
+                      { description: "Item B", completed: false },
+                    ],
+                  },
                 },
               },
             },

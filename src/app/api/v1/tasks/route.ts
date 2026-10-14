@@ -64,6 +64,7 @@ export const POST = withApi(
         externalId: data.externalId,
         externalSource: data.externalSource,
         assigneeIds: data.assigneeIds,
+        checklistItems: data.checklistItems,
         createdBy: auth.userId ?? auth.token.id,
       },
     );

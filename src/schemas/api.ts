@@ -104,6 +104,11 @@ export const listTasksQuerySchema = z.object({
   cursor: z.string().max(200).optional(),
 });
 
+const checklistItemInputSchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  completed: z.boolean().optional().default(false),
+});
+
 export const createTaskSchema = z.object({
   projectId: cuid,
   boardId: cuid,
@@ -118,6 +123,8 @@ export const createTaskSchema = z.object({
   externalId: z.string().max(120).optional(),
   externalSource: z.string().max(60).optional(),
   assigneeIds: z.array(cuid).optional(),
+  /** Itens da lista de verificação (cria checklist padrão da tarefa). */
+  checklistItems: z.array(checklistItemInputSchema).max(200).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -133,6 +140,11 @@ export const updateTaskSchema = z.object({
   archived: z.boolean().optional(),
   externalId: z.string().max(120).optional(),
   externalSource: z.string().max(60).optional(),
+  /**
+   * Quando enviado, substitui toda a lista de verificação da tarefa.
+   * Array vazio remove os itens.
+   */
+  checklistItems: z.array(checklistItemInputSchema).max(200).optional(),
 });
 
 export const taskParamsSchema = z.object({ taskId: cuid });

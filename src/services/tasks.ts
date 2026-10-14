@@ -15,6 +15,11 @@ type Actor = {
   workspaceId?: string;
 };
 
+export type ChecklistItemInput = {
+  description: string;
+  completed?: boolean;
+};
+
 export type CreateTaskInput = {
   projectId: string;
   boardId: string;
@@ -29,6 +34,7 @@ export type CreateTaskInput = {
   externalId?: string | null;
   externalSource?: string | null;
   assigneeIds?: string[];
+  checklistItems?: ChecklistItemInput[];
   createdBy: string;
 };
 
@@ -45,6 +51,8 @@ export type UpdateTaskInput = {
   archived?: boolean;
   externalId?: string | null;
   externalSource?: string | null;
+  /** Quando definido, substitui os itens da checklist padrão. */
+  checklistItems?: ChecklistItemInput[];
 };
 
 export type ListTasksInput = {
@@ -78,6 +86,61 @@ async function resolveProjectAccess(task: Task, workspaceId: string) {
   });
   if (!project) throw new AppError("FORBIDDEN", "Token sem acesso ao projeto.", 403);
   return project;
+}
+
+const taskDetailInclude = {
+  assignees: {
+    include: {
+      user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+  },
+  labels: { include: { label: true } },
+  column: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, color: true, workspaceId: true } },
+  checklists: {
+    orderBy: { position: "asc" as const },
+    include: { items: { orderBy: { position: "asc" as const } } },
+  },
+};
+
+/** Cria/atualiza a checklist padrão e substitui os itens. */
+async function replaceChecklistItems(
+  taskId: string,
+  items: ChecklistItemInput[],
+  completedByUserId: string | null,
+) {
+  let checklist = await prisma.checklist.findFirst({
+    where: { taskId },
+    orderBy: { position: "asc" },
+  });
+  if (!checklist) {
+    checklist = await prisma.checklist.create({
+      data: {
+        taskId,
+        title: "Lista de verificação",
+        position: POSITION_GAP,
+      },
+    });
+  }
+
+  await prisma.checklistItem.deleteMany({ where: { checklistId: checklist.id } });
+
+  if (items.length === 0) return;
+
+  const now = new Date();
+  await prisma.checklistItem.createMany({
+    data: items.map((item, index) => {
+      const completed = !!item.completed;
+      return {
+        checklistId: checklist!.id,
+        description: item.description.trim().slice(0, 500),
+        completed,
+        completedAt: completed ? now : null,
+        completedBy: completed ? completedByUserId : null,
+        position: (index + 1) * POSITION_GAP,
+      };
+    }),
+  });
 }
 
 export const taskService = {
@@ -159,13 +222,7 @@ export const taskService = {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        assignees: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } } },
-        labels: { include: { label: true } },
-        column: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true, color: true } },
-        checklists: {
-          include: { items: { orderBy: { position: "asc" } } },
-        },
+        ...taskDetailInclude,
         comments: {
           orderBy: { createdAt: "desc" },
           take: 50,
@@ -220,11 +277,19 @@ export const taskService = {
           ? { create: input.assigneeIds.map((userId) => ({ userId })) }
           : undefined,
       },
-      include: {
-        assignees: { include: { user: true } },
-        column: true,
-        project: { select: { id: true, name: true, workspaceId: true } },
-      },
+    });
+
+    if (input.checklistItems && input.checklistItems.length > 0) {
+      await replaceChecklistItems(
+        task.id,
+        input.checklistItems,
+        actor.userId,
+      );
+    }
+
+    const full = await prisma.task.findUniqueOrThrow({
+      where: { id: task.id },
+      include: taskDetailInclude,
     });
 
     await prisma.activity.create({
@@ -239,20 +304,21 @@ export const taskService = {
         entityType: "Task",
         entityId: task.id,
         metadata: JSON.stringify({
-          title: task.title,
-          priority: task.priority,
-          externalSource: task.externalSource,
-          externalId: task.externalId,
+          title: full.title,
+          priority: full.priority,
+          externalSource: full.externalSource,
+          externalId: full.externalId,
+          checklistItems: input.checklistItems?.length ?? 0,
         }),
       },
     });
 
     // Dispara webhook (best-effort)
     void import("@/services/webhooks").then(({ webhookService }) =>
-      webhookService.dispatch(project.workspaceId, "task.created", { task }),
+      webhookService.dispatch(project.workspaceId, "task.created", { task: full }),
     );
 
-    return task;
+    return full;
   },
 
   async update(actor: Actor & { workspaceId?: string }, taskId: string, input: UpdateTaskInput) {
@@ -304,16 +370,36 @@ export const taskService = {
     if (input.externalId !== undefined) data.externalId = input.externalId;
     if (input.externalSource !== undefined) data.externalSource = input.externalSource;
 
-    const updated = await prisma.task.update({
+    if (Object.keys(data).length > 0) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data,
+      });
+    }
+
+    if (input.checklistItems !== undefined) {
+      if (task.completedAt || task.archivedAt) {
+        throw new AppError(
+          "FORBIDDEN",
+          task.archivedAt
+            ? "Tarefa arquivada: lista de verificação somente leitura."
+            : "Reabra a tarefa para alterar a lista de verificação.",
+          403,
+        );
+      }
+      await replaceChecklistItems(
+        taskId,
+        input.checklistItems,
+        actor.userId,
+      );
+    }
+
+    const updated = await prisma.task.findUniqueOrThrow({
       where: { id: taskId },
-      data,
-      include: {
-        assignees: { include: { user: true } },
-        column: true,
-        project: { select: { id: true, name: true, workspaceId: true } },
-      },
+      include: taskDetailInclude,
     });
 
+    const { checklistItems: _checklistItems, ...metaInput } = input;
     await prisma.activity.create({
       data: {
         workspaceId: project.workspaceId,
@@ -330,7 +416,12 @@ export const taskService = {
               : "task.updated",
         entityType: "Task",
         entityId: updated.id,
-        metadata: JSON.stringify(input),
+        metadata: JSON.stringify({
+          ...metaInput,
+          ...(input.checklistItems !== undefined
+            ? { checklistItems: input.checklistItems.length }
+            : {}),
+        }),
       },
     });
 

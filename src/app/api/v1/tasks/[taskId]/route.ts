@@ -58,6 +58,9 @@ export const PATCH = withApi(
     if (data.externalSource !== undefined) {
       patch.externalSource = data.externalSource;
     }
+    if (data.checklistItems !== undefined) {
+      patch.checklistItems = data.checklistItems;
+    }
 
     const updated = await taskService.update(
       {
