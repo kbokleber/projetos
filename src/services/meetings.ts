@@ -91,11 +91,65 @@ const meetingInclude = {
   creator: { select: { id: true, name: true, email: true } },
 } as const;
 
+export type ListMeetingsByProjectFilters = {
+  /** Busca em título e descrição (contains, case-insensitive). */
+  q?: string;
+  type?: MeetingType;
+  /** Início do dia (inclusive) para heldAt. */
+  from?: Date;
+  /** Fim do dia (inclusive) para heldAt. */
+  to?: Date;
+  published?: boolean;
+  integrationId?: string;
+};
+
 export const meetingService = {
-  async listByProject(userId: string, projectId: string) {
+  async listByProject(
+    userId: string,
+    projectId: string,
+    filters: ListMeetingsByProjectFilters = {},
+  ) {
     await assertProjectAccess(userId, projectId);
+
+    const where: {
+      projectId: string;
+      type?: MeetingType;
+      published?: boolean;
+      integrationId?: { contains: string; mode: "insensitive" };
+      heldAt?: { gte?: Date; lte?: Date };
+      OR?: Array<
+        | { title: { contains: string; mode: "insensitive" } }
+        | { description: { contains: string; mode: "insensitive" } }
+      >;
+    } = { projectId };
+
+    if (filters.type) where.type = filters.type;
+    if (filters.published !== undefined) where.published = filters.published;
+
+    const integrationId = filters.integrationId?.trim();
+    if (integrationId) {
+      where.integrationId = {
+        contains: integrationId,
+        mode: "insensitive",
+      };
+    }
+
+    if (filters.from || filters.to) {
+      where.heldAt = {};
+      if (filters.from) where.heldAt.gte = filters.from;
+      if (filters.to) where.heldAt.lte = filters.to;
+    }
+
+    const q = filters.q?.trim();
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
     return prisma.meeting.findMany({
-      where: { projectId },
+      where,
       orderBy: { heldAt: "desc" },
       include: {
         participants: {

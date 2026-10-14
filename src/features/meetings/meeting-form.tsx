@@ -337,7 +337,7 @@ export function MeetingForm(props: MeetingFormProps) {
           />
         </PropRow>
 
-        <PropRow icon={AlignLeft} label="Granola ID" error={fieldErr("integrationId")}>
+        <PropRow icon={AlignLeft} label="Integration ID" error={fieldErr("integrationId")}>
           <input
             name="integrationId"
             disabled={!props.canEdit}

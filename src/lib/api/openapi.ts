@@ -362,7 +362,7 @@ export const openapiSpec = {
           heldAt: { type: "string", format: "date-time" },
           integrationId: {
             type: ["string", "null"],
-            description: "ID externo (ex.: Granola)",
+            description: "ID externo da integração (Integration ID)",
           },
           description: {
             type: "string",
@@ -899,7 +899,7 @@ export const openapiSpec = {
         tags: ["meetings"],
         summary: "Lista ATAs e reuniões",
         description:
-          "Requer `meetings:read`. Filtre por `projectId`, `type`, `published`, `integrationId` (Granola) ou `search`.",
+          "Requer `meetings:read`. Filtre por `projectId`, `type`, `published`, `integrationId` ou `search`.",
         operationId: "listMeetings",
         parameters: [
           { name: "projectId", in: "query", schema: { type: "string" } },
