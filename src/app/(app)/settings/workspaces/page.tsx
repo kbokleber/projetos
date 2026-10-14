@@ -6,7 +6,7 @@ import { workspaceService } from "@/services/workspaces";
 import { CreateWorkspaceForm } from "@/features/workspaces/create-form";
 import { WorkspaceMembersPanel } from "@/features/workspaces/members-panel";
 import { DeleteWorkspaceButton } from "@/features/workspaces/delete-workspace-button";
-import { switchWorkspaceAction } from "@/features/workspaces/actions";
+import { switchWorkspaceFormAction } from "@/features/workspaces/actions";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +87,7 @@ export default async function SettingsWorkspacesPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                     {!isActive && (
-                      <form action={switchWorkspaceAction}>
+                      <form action={switchWorkspaceFormAction}>
                         <input type="hidden" name="workspaceId" value={w.id} />
                         <Button type="submit" variant="outline" size="sm">
                           Ativar

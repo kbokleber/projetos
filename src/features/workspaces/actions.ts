@@ -77,20 +77,35 @@ export async function createWorkspaceAction(
 export async function switchWorkspaceAction(formData: FormData) {
   const user = await getSessionUser();
   const workspaceId = formData.get("workspaceId");
-  if (typeof workspaceId !== "string" || !workspaceId) return;
+  if (typeof workspaceId !== "string" || !workspaceId) {
+    return { ok: false as const, error: "Workspace inválido." };
+  }
 
   const { workspaces } = await resolveActiveWorkspace(user.id);
   const allowed = workspaces.some((w) => w.id === workspaceId);
-  if (!allowed) return;
+  if (!allowed) {
+    return { ok: false as const, error: "Sem acesso a este workspace." };
+  }
 
   await setActiveWorkspaceCookie(workspaceId);
+  // Layout + rotas principais (client chama router.refresh também)
   revalidatePath("/", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/projects");
   revalidatePath("/my-tasks");
+  revalidatePath("/tasks");
+  revalidatePath("/settings", "layout");
   revalidatePath("/settings/api");
   revalidatePath("/settings/webhooks");
   revalidatePath("/settings/workspaces");
+  revalidatePath("/settings/users");
+  revalidatePath("/settings/account");
+  return { ok: true as const, workspaceId };
+}
+
+/** Versão para `<form action>` (sem valor de retorno). */
+export async function switchWorkspaceFormAction(formData: FormData) {
+  await switchWorkspaceAction(formData);
 }
 
 export async function addWorkspaceMemberAction(
