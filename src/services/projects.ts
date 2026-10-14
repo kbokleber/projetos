@@ -9,6 +9,11 @@ import {
   assertProjectAccess,
   projectWhereForUser,
 } from "@/lib/project-access";
+import {
+  assertProjectLogoUpload,
+  deleteLocalFile,
+  saveProjectLogoFile,
+} from "@/lib/storage";
 import type { Project, ProjectStatus } from "@/generated/prisma/client";
 
 const DEFAULT_COLUMNS = [
@@ -224,6 +229,73 @@ export const projectService = {
       where: { id: projectId, workspaceId },
     });
     if (!project) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
+    return project;
+  },
+
+  async setLogo(userId: string, projectId: string, file: File) {
+    await assertProjectAccess(userId, projectId, "edit");
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, workspaceId: true, logoPath: true },
+    });
+    if (!project) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
+
+    let meta: { mime: string; fileName: string };
+    try {
+      meta = assertProjectLogoUpload(file);
+    } catch (err) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        err instanceof Error ? err.message : "Arquivo inválido.",
+        400,
+      );
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const { relative } = await saveProjectLogoFile({
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      fileName: meta.fileName,
+      bytes,
+    });
+
+    if (project.logoPath) {
+      await deleteLocalFile(project.logoPath);
+    }
+
+    return prisma.project.update({
+      where: { id: projectId },
+      data: { logoPath: relative },
+      select: { id: true, logoPath: true },
+    });
+  },
+
+  async clearLogo(userId: string, projectId: string) {
+    await assertProjectAccess(userId, projectId, "edit");
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, logoPath: true },
+    });
+    if (!project) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
+    if (project.logoPath) {
+      await deleteLocalFile(project.logoPath);
+    }
+    return prisma.project.update({
+      where: { id: projectId },
+      data: { logoPath: null },
+      select: { id: true, logoPath: true },
+    });
+  },
+
+  async getLogoForView(userId: string, projectId: string) {
+    await assertProjectAccess(userId, projectId, "view");
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { logoPath: true, updatedAt: true },
+    });
+    if (!project?.logoPath) {
+      throw new AppError("NOT_FOUND", "Logo não encontrado.", 404);
+    }
     return project;
   },
 };

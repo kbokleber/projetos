@@ -72,6 +72,12 @@ export async function createProjectAction(
         createdBy: user.id,
       },
     );
+
+    const logo = formData.get("logo");
+    if (logo instanceof File && logo.size > 0) {
+      await projectService.setLogo(user.id, project.id, logo);
+    }
+
     revalidatePath("/projects");
     revalidatePath("/dashboard");
     return { ok: true, projectId: project.id };
@@ -122,6 +128,15 @@ export async function updateProjectAction(
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
       },
     );
+
+    const removeLogo = formData.get("removeLogo") === "1";
+    const logo = formData.get("logo");
+    if (removeLogo) {
+      await projectService.clearLogo(user.id, projectId);
+    } else if (logo instanceof File && logo.size > 0) {
+      await projectService.setLogo(user.id, projectId, logo);
+    }
+
     revalidatePath("/projects");
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/dashboard");

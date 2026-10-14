@@ -84,6 +84,7 @@ export default async function EditProjectPage({
           description: project.description,
           color: project.color,
           icon: project.icon,
+          logoPath: project.logoPath,
           status: project.status,
           startDate: project.startDate?.toISOString() ?? null,
           dueDate: project.dueDate?.toISOString() ?? null,

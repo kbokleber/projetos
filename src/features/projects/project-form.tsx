@@ -11,6 +11,7 @@ import {
   archiveProjectAction,
   type FormState,
 } from "@/features/projects/actions";
+import { ProjectLogo } from "@/components/project-logo";
 import { Save, Trash2 } from "lucide-react";
 
 const COLOR_CHOICES = [
@@ -35,6 +36,7 @@ export type ProjectFormProps = {
     description: string | null;
     color: string | null;
     icon: string | null;
+    logoPath?: string | null;
     status: string;
     startDate: string | null;
     dueDate: string | null;
@@ -73,7 +75,11 @@ export function ProjectForm(props: ProjectFormProps) {
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form
+      action={formAction}
+      encType="multipart/form-data"
+      className="flex flex-col gap-6"
+    >
       {state && !state.ok && (
         <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}
@@ -194,13 +200,51 @@ export function ProjectForm(props: ProjectFormProps) {
         />
       </div>
 
-      <Field
-        label="Ícone (opcional)"
-        name="icon"
-        placeholder="Ex.: rocket, target, briefcase"
-        defaultValue={initial?.icon ?? ""}
-        hint="Use palavras-chave curtas para identificar o projeto em listas."
-      />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="logo" className="text-sm font-medium">
+          Logo do projeto
+        </label>
+        <div className="flex flex-wrap items-center gap-4">
+          {props.mode === "edit" && props.projectId ? (
+            <ProjectLogo
+              projectId={props.projectId}
+              logoPath={initial?.logoPath}
+              color={color}
+              size="form"
+            />
+          ) : (
+            <span
+              className="inline-flex size-16 shrink-0 items-center justify-center rounded-lg bg-muted ring-1 ring-border"
+              style={color ? { background: color } : undefined}
+              aria-hidden
+            />
+          )}
+          <div className="min-w-0 flex-1 space-y-2">
+            <input
+              id="logo"
+              name="logo"
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground"
+            />
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG, GIF ou WebP · máx. 2 MB. Aparece nos cards e no cabeçalho
+              do projeto.
+            </p>
+            {props.mode === "edit" && initial?.logoPath ? (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  name="removeLogo"
+                  value="1"
+                  className="size-3.5 rounded border-input"
+                />
+                Remover logo atual
+              </label>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <div className="flex gap-2">

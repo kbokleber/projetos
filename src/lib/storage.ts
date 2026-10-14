@@ -70,6 +70,58 @@ export async function saveLocalFile(input: {
   return { relative, absolute };
 }
 
+const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const LOGO_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+export function assertProjectLogoUpload(file: {
+  size: number;
+  type: string;
+  name: string;
+}) {
+  if (!file.size || file.size <= 0) {
+    throw new Error("Arquivo vazio.");
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    throw new Error("Logo maior que 2 MB.");
+  }
+  const mime = (file.type || "application/octet-stream").toLowerCase();
+  if (!LOGO_MIME.has(mime)) {
+    throw new Error("Use imagem JPG, PNG, GIF ou WebP.");
+  }
+  return { mime, fileName: sanitizeFileName(file.name) };
+}
+
+export async function saveProjectLogoFile(input: {
+  workspaceId: string;
+  projectId: string;
+  fileName: string;
+  bytes: Buffer;
+}) {
+  const token = randomBytes(8).toString("hex");
+  const relative = path
+    .join(
+      input.workspaceId,
+      "projects",
+      input.projectId,
+      `logo-${token}-${input.fileName}`,
+    )
+    .replace(/\\/g, "/");
+  const absolute = path.join(uploadsRoot(), relative);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, input.bytes);
+  return { relative, absolute };
+}
+
+export const projectLogoLimits = {
+  maxBytes: LOGO_MAX_BYTES,
+  allowedMime: [...LOGO_MIME],
+};
+
 export async function readLocalFile(relativePath: string) {
   const absolute = path.join(uploadsRoot(), relativePath);
   // Evita path traversal

@@ -168,6 +168,8 @@ model Project {
   description String?
   color       String?
   icon        String?
+  /// Caminho relativo do logo no storage local (uploads/).
+  logoPath    String?
   status      ProjectStatus @default(ACTIVE)
 
   startDate DateTime?

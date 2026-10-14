@@ -22,6 +22,7 @@ import {
   getProjectAccess,
   projectWhereForUser,
 } from "@/lib/project-access";
+import { ProjectLogo } from "@/components/project-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -155,13 +156,14 @@ export default async function ProjectDetailPage({
         </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {project.color && (
-                <span
-                  className="size-4 rounded-sm"
-                  style={{ background: project.color }}
-                />
-              )}
+            <div className="flex items-center gap-3">
+              <ProjectLogo
+                projectId={project.id}
+                logoPath={project.logoPath}
+                color={project.color}
+                size="header"
+                updatedAt={project.updatedAt}
+              />
               <h1 className="truncate text-2xl font-semibold tracking-tight">
                 {project.name}
               </h1>
@@ -327,10 +329,12 @@ function Overview({
     description: string | null;
     color: string | null;
     icon: string | null;
+    logoPath: string | null;
     status: string;
     startDate: Date | null;
     dueDate: Date | null;
     createdAt: Date;
+    updatedAt: Date;
     _count: { tasks: number; activities: number; meetings: number };
     members: Array<{
       role: string;
@@ -350,8 +354,16 @@ function Overview({
           <dd>{fmt(project.startDate)}</dd>
           <dt className="text-muted-foreground">Prazo</dt>
           <dd>{fmt(project.dueDate)}</dd>
-          <dt className="text-muted-foreground">Ícone</dt>
-          <dd>{project.icon ?? "—"}</dd>
+          <dt className="text-muted-foreground">Logo</dt>
+          <dd>
+            <ProjectLogo
+              projectId={project.id}
+              logoPath={project.logoPath}
+              color={project.color}
+              size="card"
+              updatedAt={project.updatedAt}
+            />
+          </dd>
           <dt className="text-muted-foreground">Cor</dt>
           <dd>
             {project.color ? (

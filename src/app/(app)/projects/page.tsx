@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { projectWhereForUser } from "@/lib/project-access";
+import { ProjectLogo } from "@/components/project-logo";
 
 export default async function ProjectsPage() {
   const session = await auth();
@@ -59,13 +60,14 @@ export default async function ProjectsPage() {
               href={`/projects/${p.id}`}
               className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/40"
             >
-              <div className="flex items-center gap-2">
-                {p.color && (
-                  <span
-                    className="size-3 rounded-sm"
-                    style={{ background: p.color }}
-                  />
-                )}
+              <div className="flex items-center gap-2.5">
+                <ProjectLogo
+                  projectId={p.id}
+                  logoPath={p.logoPath}
+                  color={p.color}
+                  size="card"
+                  updatedAt={p.updatedAt}
+                />
                 <h3 className="font-medium tracking-tight">{p.name}</h3>
               </div>
               {p.description && (
