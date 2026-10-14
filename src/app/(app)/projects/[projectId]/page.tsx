@@ -3,9 +3,19 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { KanbanBoard } from "@/features/tasks/kanban-board";
+import { ArchivedTasksList } from "@/features/tasks/archived-tasks-list";
 import { MembersManager } from "@/features/projects/members-manager";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Pencil, Settings, Users2, LayoutDashboard, ListChecks, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  Pencil,
+  Settings,
+  Users2,
+  LayoutDashboard,
+  ListChecks,
+  FileText,
+  Archive,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dateBR, dateTimeBR } from "@/lib/format-date";
 import {
@@ -15,7 +25,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type Tab = "board" | "members" | "overview";
+type Tab = "board" | "members" | "overview" | "archived";
 
 export default async function ProjectDetailPage({
   params,
@@ -29,7 +39,9 @@ export default async function ProjectDetailPage({
   const { projectId } = await params;
   const { tab } = await searchParams;
   const activeTab: Tab =
-    tab === "members" || tab === "overview" ? tab : "board";
+    tab === "members" || tab === "overview" || tab === "archived"
+      ? tab
+      : "board";
 
   const access = await getProjectAccess(session.user.id, projectId);
   if (!access?.canView) notFound();
@@ -85,6 +97,30 @@ export default async function ProjectDetailPage({
   });
 
   if (!project) notFound();
+
+  const archivedCount = await prisma.task.count({
+    where: { projectId, archivedAt: { not: null } },
+  });
+
+  const archivedTasks =
+    activeTab === "archived"
+      ? await prisma.task.findMany({
+          where: { projectId, archivedAt: { not: null } },
+          orderBy: { archivedAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            priority: true,
+            dueDate: true,
+            completedAt: true,
+            archivedAt: true,
+            column: { select: { id: true, name: true } },
+            assignees: {
+              include: { user: { select: { id: true, name: true } } },
+            },
+          },
+        })
+      : [];
 
   const canEdit = access.canEdit;
   const canManageMembers = access.canManageMembers;
@@ -161,6 +197,11 @@ export default async function ProjectDetailPage({
           {tabLink("board", "Board", LayoutDashboard)}
           {tabLink("overview", "Overview", ListChecks)}
           {tabLink("members", `Membros (${project.members.length})`, Users2)}
+          {tabLink(
+            "archived",
+            `Arquivadas (${archivedCount})`,
+            Archive,
+          )}
           <Link
             href={`/projects/${projectId}/meetings`}
             className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -195,6 +236,25 @@ export default async function ProjectDetailPage({
       )}
 
       {activeTab === "overview" && <Overview project={project} />}
+
+      {activeTab === "archived" && (
+        <ArchivedTasksList
+          projectId={project.id}
+          canEdit={!!canEdit}
+          tasks={archivedTasks
+            .filter((t): t is typeof t & { archivedAt: Date } => !!t.archivedAt)
+            .map((t) => ({
+              id: t.id,
+              title: t.title,
+              priority: t.priority,
+              dueDate: t.dueDate,
+              completedAt: t.completedAt,
+              archivedAt: t.archivedAt,
+              column: t.column,
+              assignees: t.assignees,
+            }))}
+        />
+      )}
     </div>
   );
 }

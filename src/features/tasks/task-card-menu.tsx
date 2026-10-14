@@ -55,7 +55,9 @@ export function TaskCardMenu({
 
   const handleArchive = () => {
     if (
-      !confirm("Arquivar esta tarefa? Ela deixará de aparecer no board.")
+      !confirm(
+        "Arquivar esta tarefa? Ela deixará de aparecer no board. Você pode restaurá-la na aba Arquivadas.",
+      )
     ) {
       return;
     }

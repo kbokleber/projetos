@@ -377,6 +377,59 @@ export async function deleteTaskAction(taskId: string) {
   redirect(`/projects/${task.projectId}`);
 }
 
+/** Restaura tarefa arquivada (tira da lixeira). */
+export async function restoreTaskAction(taskId: string) {
+  const user = await getSession();
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      projectId: true,
+      archivedAt: true,
+      title: true,
+      project: { select: { workspaceId: true } },
+    },
+  });
+  if (!task) {
+    return { ok: false as const, error: "Tarefa não encontrada." };
+  }
+  if (!task.archivedAt) {
+    return { ok: false as const, error: "Esta tarefa já não está arquivada." };
+  }
+
+  try {
+    await assertProjectEditAccess(user.id, task.projectId);
+  } catch {
+    return { ok: false as const, error: "Sem permissão neste projeto." };
+  }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { archivedAt: null },
+  });
+
+  await prisma.activity.create({
+    data: {
+      workspaceId: task.project.workspaceId,
+      projectId: task.projectId,
+      taskId,
+      userId: user.id,
+      actorType: "USER",
+      actorId: user.id,
+      action: "task.updated",
+      entityType: "Task",
+      entityId: taskId,
+      metadata: JSON.stringify({ archived: false, title: task.title }),
+    },
+  });
+
+  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
+  revalidatePath("/my-tasks");
+  revalidatePath("/dashboard");
+  return { ok: true as const };
+}
+
 export async function createCommentAction(
   taskId: string,
   _prev: { ok: boolean; error?: string } | undefined,

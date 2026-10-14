@@ -9,6 +9,7 @@ import {
   moveTaskAction,
   updateTaskDetailsAction,
   deleteTaskAction,
+  restoreTaskAction,
   toggleTaskCompletionAction,
   type TaskFormState,
 } from "@/features/tasks/actions";
@@ -26,6 +27,7 @@ import {
   Clock3,
   MessageSquare,
   CheckCircle2,
+  ArchiveRestore,
 } from "lucide-react";
 import {
   TaskAttachments,
@@ -201,8 +203,11 @@ export function TaskDetailsPanel(props: {
           )}
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {archived ? (
-              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
-                Arquivada
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                  Arquivada
+                </span>
+                {canEdit && <RestoreTaskButton taskId={taskId} />}
               </span>
             ) : (
               <span
@@ -583,6 +588,34 @@ function MoveBucketForm({
   );
 }
 
+function RestoreTaskButton({ taskId }: { taskId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-6 px-2 text-[11px]"
+      disabled={pending}
+      onClick={() => {
+        startTransition(async () => {
+          const res = await restoreTaskAction(taskId);
+          if (!res.ok) {
+            alert(res.error);
+            return;
+          }
+          router.refresh();
+        });
+      }}
+    >
+      <ArchiveRestore className="size-3" />
+      {pending ? "Restaurando…" : "Restaurar"}
+    </Button>
+  );
+}
+
 function DeleteTaskButton({
   taskId,
   projectId,
@@ -606,7 +639,7 @@ function DeleteTaskButton({
         onClick={() => {
           if (
             !confirm(
-              "Arquivar esta tarefa? Ela deixará de aparecer no board.",
+              "Arquivar esta tarefa? Ela deixará de aparecer no board. Você pode restaurá-la na aba Arquivadas.",
             )
           ) {
             return;
@@ -615,7 +648,7 @@ function DeleteTaskButton({
           startTransition(async () => {
             try {
               await deleteTaskAction(taskId);
-              router.push(`/projects/${projectId}`);
+              router.push(`/projects/${projectId}?tab=archived`);
               router.refresh();
             } catch (err) {
               if (
@@ -626,7 +659,7 @@ function DeleteTaskButton({
                   "NEXT_REDIRECT",
                 )
               ) {
-                router.push(`/projects/${projectId}`);
+                router.push(`/projects/${projectId}?tab=archived`);
                 router.refresh();
                 return;
               }

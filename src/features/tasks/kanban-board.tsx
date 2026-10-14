@@ -35,6 +35,8 @@ import {
   CalendarDays,
   AlertCircle,
   GripVertical,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { dateBR } from "@/lib/format-date";
 import { isCompletionColumnName } from "@/lib/task-completion";
@@ -370,60 +372,101 @@ function KanbanColumn({
   columns: Array<{ id: string; name: string }>;
   onMenuMove?: (taskId: string, columnId: string) => void;
 }) {
+  const isDoneColumn = isCompletionColumnName(column.name);
+  // Concluído sempre começa recolhido; o usuário expande quando quiser.
+  const [collapsed, setCollapsed] = useState(isDoneColumn);
+
   const { setNodeRef, isOver } = useDroppable({
     id: columnDroppableId(column.id),
     data: { type: "column", columnId: column.id },
   });
   const taskIds = column.tasks.map((t) => t.id);
+  const showCollapsed = isDoneColumn && collapsed;
 
   return (
     <section
       data-column-id={column.id}
       className={cn(
         "flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/40 p-3 transition-colors",
-        "min-h-[min(70vh,640px)]",
+        showCollapsed ? "min-h-0" : "min-h-[min(70vh,640px)]",
         isOver && "ring-2 ring-primary/40 bg-muted/70",
       )}
     >
-      <header className="flex shrink-0 items-center justify-between">
-        <div className="flex items-center gap-2">
+      <header className="flex shrink-0 items-center justify-between gap-1">
+        <div className="flex min-w-0 items-center gap-2">
           {column.color && (
             <span
-              className="size-2.5 rounded-sm"
+              className="size-2.5 shrink-0 rounded-sm"
               style={{ background: column.color }}
             />
           )}
-          <h3 className="text-sm font-medium">{column.name}</h3>
+          <h3 className="truncate text-sm font-medium">{column.name}</h3>
           <span className="rounded bg-background px-1.5 py-0.5 text-xs text-muted-foreground">
             {column.tasks.length}
           </span>
         </div>
+        {isDoneColumn && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+            title={collapsed ? "Expandir coluna" : "Recolher coluna"}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expandir concluídas" : "Recolher concluídas"}
+          >
+            {collapsed ? (
+              <ChevronRight className="size-4" />
+            ) : (
+              <ChevronDown className="size-4" />
+            )}
+          </button>
+        )}
       </header>
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        {/* Área de drop alta: colunas vazias ou com poucos cards aceitam drop */}
         <div
           ref={setNodeRef}
-          className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+          className={cn(
+            "flex flex-col gap-2",
+            showCollapsed
+              ? "min-h-16 justify-center"
+              : "min-h-0 flex-1 overflow-y-auto",
+          )}
         >
-          {column.tasks.map((t) => (
-            <SortableTaskCard
-              key={t.id}
-              projectId={projectId}
-              task={t}
-              canComplete={canEdit}
-              columns={columns}
-              onMenuMove={onMenuMove}
-            />
-          ))}
-          {canEdit && (
-            <div className="mt-auto pt-1">
-              <QuickTaskButton
-                projectId={projectId}
-                boardId={boardId}
-                columnId={column.id}
-              />
-            </div>
+          {showCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              className="rounded-md border border-dashed border-border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+            >
+              {column.tasks.length === 0
+                ? "Nenhuma concluída · solte aqui"
+                : `${column.tasks.length} ${
+                    column.tasks.length === 1 ? "concluída" : "concluídas"
+                  } · expandir`}
+            </button>
+          ) : (
+            <>
+              {column.tasks.map((t) => (
+                <SortableTaskCard
+                  key={t.id}
+                  projectId={projectId}
+                  task={t}
+                  canComplete={canEdit}
+                  columns={columns}
+                  onMenuMove={onMenuMove}
+                />
+              ))}
+              {canEdit && (
+                <div className="mt-auto pt-1">
+                  <QuickTaskButton
+                    projectId={projectId}
+                    boardId={boardId}
+                    columnId={column.id}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </SortableContext>
