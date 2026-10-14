@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Plus, Share2 } from "lucide-react";
 import { dateTimeBR } from "@/lib/format-date";
 import { AppError } from "@/lib/errors";
+import {
+  getProjectAccess,
+  projectWhereForUser,
+} from "@/lib/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,42 +29,23 @@ export default async function ProjectMeetingsPage({
   if (!session?.user) redirect("/login");
   const { projectId } = await params;
 
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
+
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      OR: [
-        { members: { some: { userId: session.user.id } } },
-        {
-          workspace: {
-            is: { members: { some: { userId: session.user.id } } },
-          },
-        },
-      ],
+      AND: [projectWhereForUser(session.user.id)],
     },
     select: {
       id: true,
       name: true,
       workspaceId: true,
-      members: {
-        where: { userId: session.user.id },
-        select: { role: true },
-      },
     },
   });
   if (!project) notFound();
 
-  const myMembership = project.members[0];
-  const isWsMember = myMembership
-    ? false
-    : !!(await prisma.workspaceMember.findFirst({
-        where: {
-          workspaceId: project.workspaceId,
-          userId: session.user.id,
-        },
-        select: { id: true },
-      }));
-  const canEdit =
-    (!!myMembership && myMembership.role !== "VIEWER") || isWsMember;
+  const canEdit = access.canEdit;
 
   let meetings;
   try {

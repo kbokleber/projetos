@@ -28,6 +28,7 @@ export type ApiScope =
   | "comments:read"
   | "comments:write"
   | "members:read"
+  | "members:write"
   | "webhooks:read"
   | "webhooks:write";
 

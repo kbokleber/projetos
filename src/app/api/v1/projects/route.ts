@@ -38,6 +38,7 @@ export const GET = withApi(
       search: parsed.data.search,
       take: parsed.data.limit,
       cursor: parsed.data.cursor,
+      userId: auth.userId,
     });
     return apiOk({
       ...result,

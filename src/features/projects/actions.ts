@@ -203,10 +203,10 @@ export async function addProjectMemberAction(
   });
   if (!project) return { ok: false, error: "Projeto não encontrado." };
 
-  const memberRow = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId: user.id } },
-  });
-  if (!memberRow || memberRow.role === "VIEWER") {
+  try {
+    const { assertProjectAccess } = await import("@/lib/project-access");
+    await assertProjectAccess(user.id, projectId, "manageMembers");
+  } catch {
     return { ok: false, error: "Sem permissão para gerenciar membros." };
   }
 
@@ -257,10 +257,10 @@ export async function removeProjectMemberAction(
   userId: string,
 ) {
   const user = await getSession();
-  const memberRow = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId: user.id } },
-  });
-  if (!memberRow || (memberRow.role !== "OWNER" && memberRow.role !== "ADMIN")) {
+  try {
+    const { assertProjectAccess } = await import("@/lib/project-access");
+    await assertProjectAccess(user.id, projectId, "manageMembers");
+  } catch {
     return;
   }
 
@@ -303,10 +303,16 @@ export async function changeProjectMemberRoleAction(
   role: "ADMIN" | "MEMBER" | "VIEWER",
 ) {
   const user = await getSession();
-  const memberRow = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId: user.id } },
-  });
-  if (!memberRow || memberRow.role !== "OWNER") {
+  try {
+    const { getProjectAccess } = await import("@/lib/project-access");
+    const access = await getProjectAccess(user.id, projectId);
+    const canChangeRole =
+      access?.canManageMembers &&
+      (access.projectRole === "OWNER" ||
+        access.workspaceRole === "OWNER" ||
+        access.workspaceRole === "ADMIN");
+    if (!canChangeRole) return;
+  } catch {
     return;
   }
   await prisma.projectMember.update({

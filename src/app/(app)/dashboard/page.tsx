@@ -27,12 +27,13 @@ export default async function DashboardPage() {
     );
   }
 
+  const userId = session.user.id;
   const [summary, recentActivity, activityByOrigin, recentApiTasks] =
     await Promise.all([
-      dashboardService.summary(active.id),
-      dashboardService.recentActivity(active.id, 15),
-      dashboardService.activityByOrigin(active.id),
-      dashboardService.recentApiTasks(active.id, 8),
+      dashboardService.summary(active.id, userId),
+      dashboardService.recentActivity(active.id, userId, 15),
+      dashboardService.activityByOrigin(active.id, userId),
+      dashboardService.recentApiTasks(active.id, userId, 8),
     ]);
 
   return (

@@ -6,6 +6,7 @@ import { meetingService } from "@/services/meetings";
 import { MeetingForm } from "@/features/meetings/meeting-form";
 import { AppError } from "@/lib/errors";
 import { MEETING_TYPES } from "@/schemas/meetings";
+import { getProjectAccess } from "@/lib/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,9 @@ export default async function MeetingDetailPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
   const { projectId, meetingId } = await params;
+
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
 
   let meeting;
   try {
@@ -42,20 +46,7 @@ export default async function MeetingDetailPage({
     },
   });
 
-  const myMembership = project.members.find(
-    (m) => m.userId === session.user.id,
-  );
-  const isWsMember = myMembership
-    ? false
-    : !!(await prisma.workspaceMember.findFirst({
-        where: {
-          workspaceId: project.workspaceId,
-          userId: session.user.id,
-        },
-        select: { id: true },
-      }));
-  const canEdit =
-    (!!myMembership && myMembership.role !== "VIEWER") || isWsMember;
+  const canEdit = access.canEdit;
 
   const hdrs = await headers();
   const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";

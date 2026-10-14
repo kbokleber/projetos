@@ -18,11 +18,12 @@ const SCOPE_LABELS: Record<string, string> = {
   "comments:read": "Comentários · leitura",
   "comments:write": "Comentários · escrita",
   "members:read": "Membros · leitura",
+  "members:write": "Membros · escrita (vincular ao projeto)",
   "webhooks:read": "Webhooks · leitura",
   "webhooks:write": "Webhooks · escrita",
 };
 
-/** Escopos recomendados para IAs (tarefas + ATAs). */
+/** Escopos recomendados para IAs (tarefas + ATAs + membros). */
 const AI_DEFAULT_SCOPES = new Set([
   "projects:read",
   "projects:write",
@@ -32,6 +33,8 @@ const AI_DEFAULT_SCOPES = new Set([
   "meetings:write",
   "comments:read",
   "comments:write",
+  "members:read",
+  "members:write",
 ]);
 
 export function CreateTokenForm() {

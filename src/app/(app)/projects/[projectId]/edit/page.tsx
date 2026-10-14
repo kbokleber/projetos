@@ -6,6 +6,7 @@ import { ProjectForm } from "@/features/projects/project-form";
 import { unarchiveProjectAction } from "@/features/projects/actions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { getProjectAccess } from "@/lib/project-access";
 
 export default async function EditProjectPage({
   params,
@@ -17,27 +18,20 @@ export default async function EditProjectPage({
 
   const { projectId } = await params;
 
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
+  if (!access.canEdit) {
+    redirect(`/projects/${projectId}`);
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
-      members: { where: { userId: session.user.id }, select: { role: true } },
       workspace: { select: { id: true, name: true } },
     },
   });
 
   if (!project) notFound();
-  const myMembership = project.members[0];
-  const isWsMember = !myMembership
-    ? !!(await prisma.workspaceMember.findFirst({
-        where: { workspaceId: project.workspace.id, userId: session.user.id },
-        select: { id: true },
-      }))
-    : false;
-  const canEdit =
-    (!!myMembership && myMembership.role !== "VIEWER") || isWsMember;
-  if (!canEdit) {
-    redirect(`/projects/${projectId}`);
-  }
 
   const isArchived = !!project.archivedAt;
 

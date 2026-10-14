@@ -57,6 +57,8 @@ export type UpdateTaskInput = {
 
 export type ListTasksInput = {
   workspaceId: string;
+  /** Quando informado, só tarefas de projetos acessíveis. */
+  userId?: string | null;
   projectId?: string;
   boardId?: string;
   columnId?: string;
@@ -175,16 +177,24 @@ export const taskService = {
       where.externalId = input.externalId;
     }
 
-    // Garante acesso ao workspace (tasks sempre têm projectId)
+    // Garante acesso ao workspace (+ vínculo ao projeto quando há userId)
+    const { projectWhereForUser } = await import("@/lib/project-access");
     if (!input.projectId) {
       const projects = await prisma.project.findMany({
-        where: { workspaceId: input.workspaceId },
+        where: {
+          workspaceId: input.workspaceId,
+          ...(input.userId ? { AND: [projectWhereForUser(input.userId)] } : {}),
+        },
         select: { id: true },
       });
       where.projectId = { in: projects.map((p) => p.id) };
     } else {
       const project = await prisma.project.findFirst({
-        where: { id: input.projectId, workspaceId: input.workspaceId },
+        where: {
+          id: input.projectId,
+          workspaceId: input.workspaceId,
+          ...(input.userId ? { AND: [projectWhereForUser(input.userId)] } : {}),
+        },
         select: { id: true },
       });
       if (!project) throw new AppError("FORBIDDEN", "Sem acesso ao projeto.", 403);
@@ -236,6 +246,10 @@ export const taskService = {
   },
 
   async create(actor: Actor, input: CreateTaskInput) {
+    if (actor.userId) {
+      const { assertProjectAccess } = await import("@/lib/project-access");
+      await assertProjectAccess(actor.userId, input.projectId, "edit");
+    }
     const project = await prisma.project.findFirst({
       where: { id: input.projectId },
     });

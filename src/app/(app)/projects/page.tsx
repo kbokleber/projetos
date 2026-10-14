@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { projectWhereForUser } from "@/lib/project-access";
 
 export default async function ProjectsPage() {
   const session = await auth();
@@ -25,16 +26,7 @@ export default async function ProjectsPage() {
     where: {
       archivedAt: null,
       workspaceId: active.id,
-      OR: [
-        { members: { some: { userId: session.user.id } } },
-        {
-          workspace: {
-            is: {
-              members: { some: { userId: session.user.id } },
-            },
-          },
-        },
-      ],
+      AND: [projectWhereForUser(session.user.id)],
     },
     orderBy: { updatedAt: "desc" },
     include: {

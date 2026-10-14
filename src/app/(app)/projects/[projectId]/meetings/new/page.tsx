@@ -2,6 +2,10 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MeetingForm } from "@/features/meetings/meeting-form";
+import {
+  getProjectAccess,
+  projectWhereForUser,
+} from "@/lib/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -14,24 +18,16 @@ export default async function NewMeetingPage({
   if (!session?.user) redirect("/login");
   const { projectId } = await params;
 
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
+  if (!access.canEdit) {
+    redirect(`/projects/${projectId}/meetings`);
+  }
+
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      OR: [
-        {
-          members: {
-            some: {
-              userId: session.user.id,
-              role: { in: ["OWNER", "ADMIN", "MEMBER"] },
-            },
-          },
-        },
-        {
-          workspace: {
-            is: { members: { some: { userId: session.user.id } } },
-          },
-        },
-      ],
+      AND: [projectWhereForUser(session.user.id)],
     },
     select: {
       id: true,

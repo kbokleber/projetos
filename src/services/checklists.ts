@@ -14,41 +14,18 @@ async function assertTaskAccess(
       projectId: true,
       completedAt: true,
       archivedAt: true,
-      project: {
-        select: {
-          workspaceId: true,
-          members: {
-            where: { userId },
-            select: { role: true },
-            take: 1,
-          },
-          workspace: {
-            select: {
-              members: {
-                where: { userId },
-                select: { id: true },
-                take: 1,
-              },
-            },
-          },
-        },
-      },
+      project: { select: { workspaceId: true } },
     },
   });
   if (!task) throw new AppError("NOT_FOUND", "Tarefa não encontrada.", 404);
 
-  const membership = task.project.members[0];
-  const wsMember = task.project.workspace.members[0];
-  if (!membership && !wsMember) {
-    throw new AppError("FORBIDDEN", "Sem acesso a esta tarefa.", 403);
-  }
-  if (mode === "write" && membership?.role === "VIEWER") {
-    throw new AppError(
-      "FORBIDDEN",
-      "Sem permissão para editar a lista de verificação.",
-      403,
-    );
-  }
+  const { assertProjectAccess } = await import("@/lib/project-access");
+  await assertProjectAccess(
+    userId,
+    task.projectId,
+    mode === "write" ? "edit" : "view",
+  );
+
   if (mode === "write" && (task.completedAt || task.archivedAt)) {
     throw new AppError(
       "FORBIDDEN",

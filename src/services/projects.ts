@@ -5,6 +5,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import {
+  assertProjectAccess,
+  projectWhereForUser,
+} from "@/lib/project-access";
 import type { Project, ProjectStatus } from "@/generated/prisma/client";
 
 const DEFAULT_COLUMNS = [
@@ -52,13 +56,26 @@ async function ensureMember(workspaceId: string, userId: string | null) {
 }
 
 export const projectService = {
-  async list(workspaceId: string, opts: { status?: ProjectStatus; search?: string; take: number; cursor?: string | null }) {
+  async list(
+    workspaceId: string,
+    opts: {
+      status?: ProjectStatus;
+      search?: string;
+      take: number;
+      cursor?: string | null;
+      /** Quando informado, só projetos acessíveis a este usuário. */
+      userId?: string | null;
+    },
+  ) {
     const where: Record<string, unknown> = {
       workspaceId,
       archivedAt: null,
     };
     if (opts.status) where.status = opts.status;
     if (opts.search) where.name = { contains: opts.search };
+    if (opts.userId) {
+      where.AND = [projectWhereForUser(opts.userId)];
+    }
 
     const cursor = opts.cursor
       ? { id: opts.cursor }
@@ -86,7 +103,10 @@ export const projectService = {
     };
   },
 
-  async getById(projectId: string) {
+  async getById(projectId: string, userId?: string | null) {
+    if (userId) {
+      await assertProjectAccess(userId, projectId, "view");
+    }
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       include: {
@@ -153,18 +173,7 @@ export const projectService = {
     if (!existing) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
 
     if (actor.userId) {
-      const member = await prisma.projectMember.findUnique({
-        where: { projectId_userId: { projectId, userId: actor.userId } },
-      });
-      const isWsMember = !member
-        ? !!(await prisma.workspaceMember.findFirst({
-            where: { workspaceId: existing.workspaceId, userId: actor.userId },
-            select: { id: true },
-          }))
-        : false;
-      if ((!member || member.role === "VIEWER") && !isWsMember) {
-        throw new AppError("FORBIDDEN", "Sem permissão para editar o projeto.", 403);
-      }
+      await assertProjectAccess(actor.userId, projectId, "edit");
     }
 
     const updated = await prisma.project.update({

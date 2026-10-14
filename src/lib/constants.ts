@@ -30,6 +30,7 @@ export const API_SCOPES = [
   "comments:read",
   "comments:write",
   "members:read",
+  "members:write",
   "webhooks:read",
   "webhooks:write",
 ] as const;

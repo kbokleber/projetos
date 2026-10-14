@@ -22,6 +22,7 @@ export const GET = withApi(
 
     const result = await taskService.list({
       workspaceId: auth.workspaceId,
+      userId: auth.userId,
       projectId: parsed.data.projectId,
       boardId: parsed.data.boardId,
       columnId: parsed.data.columnId,

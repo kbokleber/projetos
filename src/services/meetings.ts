@@ -35,41 +35,19 @@ export type UpdateMeetingInput = {
 };
 
 async function assertProjectAccess(userId: string, projectId: string) {
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      OR: [
-        { members: { some: { userId } } },
-        { workspace: { is: { members: { some: { userId } } } } },
-      ],
-    },
-    select: { id: true, workspaceId: true },
-  });
-  if (!project) {
-    throw new AppError("FORBIDDEN", "Sem permissão neste projeto.", 403);
-  }
-  return project;
+  const { assertProjectAccess: assertAccess } = await import(
+    "@/lib/project-access"
+  );
+  const access = await assertAccess(userId, projectId, "view");
+  return { id: access.projectId, workspaceId: access.workspaceId };
 }
 
 async function assertProjectEditAccess(userId: string, projectId: string) {
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      OR: [
-        {
-          members: {
-            some: { userId, role: { in: ["OWNER", "ADMIN", "MEMBER"] } },
-          },
-        },
-        { workspace: { is: { members: { some: { userId } } } } },
-      ],
-    },
-    select: { id: true, workspaceId: true },
-  });
-  if (!project) {
-    throw new AppError("FORBIDDEN", "Sem permissão neste projeto.", 403);
-  }
-  return project;
+  const { assertProjectAccess: assertAccess } = await import(
+    "@/lib/project-access"
+  );
+  const access = await assertAccess(userId, projectId, "edit");
+  return { id: access.projectId, workspaceId: access.workspaceId };
 }
 
 async function validateMemberIds(projectId: string, memberIds: string[]) {
@@ -135,6 +113,7 @@ export const meetingService = {
    */
   async listForApi(opts: {
     workspaceId: string;
+    userId?: string | null;
     projectId?: string;
     type?: MeetingType;
     published?: boolean;
@@ -143,8 +122,12 @@ export const meetingService = {
     take: number;
     cursor?: string | null;
   }) {
+    const { projectWhereForUser } = await import("@/lib/project-access");
     const where: Record<string, unknown> = {
-      project: { workspaceId: opts.workspaceId },
+      project: {
+        workspaceId: opts.workspaceId,
+        ...(opts.userId ? { AND: [projectWhereForUser(opts.userId)] } : {}),
+      },
     };
     if (opts.projectId) where.projectId = opts.projectId;
     if (opts.type) where.type = opts.type;

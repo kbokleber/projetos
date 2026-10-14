@@ -28,7 +28,20 @@ export const GET = withApi(
       fallbackWorkspaceId: auth.workspaceId,
     });
 
-    if (parsed.data.projectId) {
+    if (parsed.data.projectId && auth.userId) {
+      const { projectWhereForUser } = await import("@/lib/project-access");
+      const project = await prisma.project.findFirst({
+        where: {
+          id: parsed.data.projectId,
+          workspaceId: workspace.id,
+          AND: [projectWhereForUser(auth.userId)],
+        },
+        select: { id: true },
+      });
+      if (!project) {
+        return apiError("NOT_FOUND", "Projeto não encontrado neste workspace.", 404);
+      }
+    } else if (parsed.data.projectId) {
       const project = await prisma.project.findFirst({
         where: {
           id: parsed.data.projectId,
@@ -43,6 +56,7 @@ export const GET = withApi(
 
     const result = await meetingService.listForApi({
       workspaceId: workspace.id,
+      userId: auth.userId,
       projectId: parsed.data.projectId,
       type: parsed.data.type,
       published: parsed.data.published,
@@ -64,19 +78,6 @@ export const POST = withApi(
     const data = body as z.infer<typeof createMeetingSchema>;
     if (!auth.userId) {
       throw new AppError("FORBIDDEN", "Usuário não associado ao token.", 403);
-    }
-
-    const project = await prisma.project.findFirst({
-      where: {
-        id: data.projectId,
-        workspace: {
-          is: { members: { some: { userId: auth.userId } } },
-        },
-      },
-      select: { id: true, workspaceId: true },
-    });
-    if (!project) {
-      throw new AppError("NOT_FOUND", "Projeto não encontrado ou sem acesso.", 404);
     }
 
     const meeting = await meetingService.create(auth.userId, {

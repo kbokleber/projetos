@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { TaskDetailsPanel } from "@/features/tasks/task-details-panel";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import {
+  getProjectAccess,
+  projectWhereForUser,
+} from "@/lib/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,19 +22,13 @@ export default async function TaskDetailPage({
 
   const { projectId, taskId } = await params;
 
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
+
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      OR: [
-        { members: { some: { userId: session.user.id } } },
-        {
-          workspace: {
-            is: {
-              members: { some: { userId: session.user.id } },
-            },
-          },
-        },
-      ],
+      AND: [projectWhereForUser(session.user.id)],
     },
     include: {
       members: {
@@ -78,32 +76,9 @@ export default async function TaskDetailPage({
   });
   if (!task) notFound();
 
-  const myMembership = project.members.find(
-    (m) => m.userId === session.user.id,
-  );
-  let canEdit = false;
-  if (myMembership && myMembership.role !== "VIEWER") {
-    canEdit = true;
-  } else if (!myMembership) {
-    const wsMember = await prisma.workspaceMember.findFirst({
-      where: { workspaceId: project.workspaceId, userId: session.user.id },
-      select: { id: true },
-    });
-    if (wsMember) canEdit = true;
-  }
+  const canEdit = access.canEdit;
 
-  // Pessoas visíveis no projeto: membros do projeto + membros do workspace
-  const workspaceMembers = await prisma.workspaceMember.findMany({
-    where: {
-      workspaceId: project.workspaceId,
-      user: { active: true },
-    },
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-    },
-    orderBy: { user: { name: "asc" } },
-  });
-
+  // Responsáveis: membros do projeto (+ atuais, mesmo se saíram)
   const assignableById = new Map<
     string,
     { userId: string; name: string | null; email: string }
@@ -116,16 +91,6 @@ export default async function TaskDetailPage({
       email: m.user.email,
     });
   }
-  for (const m of workspaceMembers) {
-    if (!assignableById.has(m.userId)) {
-      assignableById.set(m.userId, {
-        userId: m.userId,
-        name: m.user.name,
-        email: m.user.email,
-      });
-    }
-  }
-  // Mantém responsáveis atuais mesmo se saíram do projeto/workspace
   for (const a of task.assignees) {
     if (!assignableById.has(a.userId)) {
       assignableById.set(a.userId, {

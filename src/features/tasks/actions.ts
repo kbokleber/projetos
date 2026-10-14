@@ -20,31 +20,11 @@ async function getSession() {
   return session.user;
 }
 
-/**
- * Verifica se o usuário tem acesso ao projeto. Aceita ProjectMember
- * (qualquer role exceto VIEWER) ou WorkspaceMember (herda permissão
- * de MEMBER, ou seja, pode editar mas não pode gerenciar membros).
- * Retorna o projectId + workspaceId se permitido.
- */
+/** ProjectMember editável ou Workspace OWNER/ADMIN. */
 async function assertProjectEditAccess(userId: string, projectId: string) {
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      OR: [
-        { members: { some: { userId, role: { in: ["OWNER", "ADMIN", "MEMBER"] } } } },
-        {
-          workspace: {
-            is: { members: { some: { userId } } },
-          },
-        },
-      ],
-    },
-    select: { id: true, workspaceId: true },
-  });
-  if (!project) {
-    throw new AppError("FORBIDDEN", "Sem permissão neste projeto.", 403);
-  }
-  return project;
+  const { assertProjectAccess } = await import("@/lib/project-access");
+  const access = await assertProjectAccess(userId, projectId, "edit");
+  return { id: access.projectId, workspaceId: access.workspaceId };
 }
 
 function flatten(err: z.ZodError): Record<string, string> {
@@ -171,16 +151,7 @@ export async function updateTaskDetailsAction(
     const allowedUsers = await prisma.user.findMany({
       where: {
         active: true,
-        OR: [
-          {
-            projectMembers: { some: { projectId: task.projectId } },
-          },
-          {
-            workspaceMembers: {
-              some: { workspaceId: task.project.workspaceId },
-            },
-          },
-        ],
+        projectMembers: { some: { projectId: task.projectId } },
       },
       select: { id: true },
     });
@@ -190,8 +161,7 @@ export async function updateTaskDetailsAction(
     if (invalid.length > 0) {
       return {
         ok: false,
-        error:
-          "Um ou mais responsáveis não têm acesso a este projeto/workspace.",
+        error: "Um ou mais responsáveis não são membros deste projeto.",
       };
     }
 

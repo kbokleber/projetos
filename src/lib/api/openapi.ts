@@ -21,9 +21,15 @@ Token gerado em **/settings/api**.
 | **Criar / editar (PATCH) / mover / arquivar tarefas** | **\`tasks:write\`** |
 | Listar/ler ATAs e reuniões | \`meetings:read\` |
 | **Criar / editar / excluir ATAs** | **\`meetings:write\`** |
+| Listar membros do projeto | \`members:read\` |
+| **Adicionar / remover / alterar papel de membros** | **\`members:write\`** |
 
 Sem \`tasks:write\`, \`PATCH /tasks/{id}\` retorna **403** (Escopo insuficiente).  
 Sem \`meetings:write\`, \`POST/PATCH/DELETE /meetings\` retorna **403**.
+
+### Acesso a projetos
+Listagens (\`GET /projects\`, tarefas, ATAs) retornam **apenas projetos em que o usuário do token é \`ProjectMember\`**, ou todos os projetos do workspace se for **OWNER/ADMIN** do workspace.  
+Novos membros do workspace **não** entram automaticamente em todos os projetos — use \`POST /projects/{id}/members\`.
 
 ### Workspaces (importante)
 Cada token tem um **workspace padrão**, mas o usuário do token pode atuar em **qualquer workspace** do qual seja membro (incluindo editar tarefas desses workspaces).
@@ -85,7 +91,7 @@ export const openapiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Sistema de Projetos — API Pública",
-    version: "1.4.0",
+    version: "1.5.0",
     description: API_GUIDE,
   },
   servers: [{ url: `${server}/api/v1`, description: "Servidor atual" }],
@@ -424,7 +430,12 @@ export const openapiSpec = {
     {
       name: "projects",
       description:
-        "CRUD de projetos. Ao criar, informe workspaceSlug ou workspace se o destino não for o padrão do token.",
+        "CRUD de projetos. Ao criar, informe workspaceSlug ou workspace se o destino não for o padrão do token. Lista só projetos acessíveis ao usuário do token.",
+    },
+    {
+      name: "members",
+      description:
+        "Membros do projeto. Requer `members:read` / `members:write`. O convidado precisa ser membro do workspace.",
     },
     { name: "boards" },
     { name: "columns" },
@@ -620,6 +631,107 @@ export const openapiSpec = {
         responses: { "200": { description: "OK" } },
       },
       delete: { tags: ["projects"], summary: "Arquiva projeto", responses: { "204": { description: "Sem conteúdo" } } },
+    },
+    "/projects/{projectId}/members": {
+      parameters: [
+        {
+          name: "projectId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      get: {
+        tags: ["members"],
+        summary: "Lista membros do projeto",
+        description: "Requer `members:read` e acesso ao projeto.",
+        operationId: "listProjectMembers",
+        responses: { "200": { description: "Lista de ProjectMember" } },
+      },
+      post: {
+        tags: ["members"],
+        summary: "Adiciona ou atualiza membro do projeto",
+        description:
+          "Requer `members:write`. Informe `email` ou `userId`. O usuário precisa ser membro do workspace. Papéis: ADMIN, MEMBER, VIEWER.",
+        operationId: "addProjectMember",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  email: { type: "string", format: "email" },
+                  userId: { type: "string" },
+                  role: {
+                    type: "string",
+                    enum: ["ADMIN", "MEMBER", "VIEWER"],
+                    default: "MEMBER",
+                  },
+                },
+              },
+              examples: {
+                byEmail: {
+                  summary: "Vincular por email",
+                  value: { email: "dev@empresa.com", role: "MEMBER" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Membro vinculado" },
+          "400": { description: "Usuário fora do workspace" },
+          "403": { description: "Sem permissão para gerenciar membros" },
+        },
+      },
+    },
+    "/projects/{projectId}/members/{userId}": {
+      parameters: [
+        {
+          name: "projectId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "userId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      patch: {
+        tags: ["members"],
+        summary: "Altera papel do membro",
+        description: "Requer `members:write`. Papéis: ADMIN, MEMBER, VIEWER.",
+        operationId: "updateProjectMember",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["role"],
+                properties: {
+                  role: {
+                    type: "string",
+                    enum: ["ADMIN", "MEMBER", "VIEWER"],
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { "200": { description: "OK" } },
+      },
+      delete: {
+        tags: ["members"],
+        summary: "Remove membro do projeto",
+        description: "Requer `members:write`. Não remove o último OWNER.",
+        operationId: "removeProjectMember",
+        responses: { "204": { description: "Sem conteúdo" } },
+      },
     },
     "/tasks": {
       get: {

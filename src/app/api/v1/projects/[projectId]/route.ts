@@ -11,8 +11,11 @@ import {
 
 export const GET = withApi(
   { requireScope: "projects:read", paramsSchema: projectParamsSchema },
-  async ({ params }) => {
-    const project = await projectService.getById(params.projectId);
+  async ({ auth, params }) => {
+    const project = await projectService.getById(
+      params.projectId,
+      auth.userId,
+    );
     return apiOk(project);
   },
 );

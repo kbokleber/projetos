@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, Settings, Users2, LayoutDashboard, ListChecks, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dateBR, dateTimeBR } from "@/lib/format-date";
+import {
+  getProjectAccess,
+  projectWhereForUser,
+} from "@/lib/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -27,22 +31,13 @@ export default async function ProjectDetailPage({
   const activeTab: Tab =
     tab === "members" || tab === "overview" ? tab : "board";
 
+  const access = await getProjectAccess(session.user.id, projectId);
+  if (!access?.canView) notFound();
+
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      // Membro do workspace OU membro explícito do projeto pode ver.
-      // Isso evita que um projeto recém-criado (sem ProjectMember)
-      // fique invisível para o criador, que já é membro do workspace.
-      OR: [
-        { members: { some: { userId: session.user.id } } },
-        {
-          workspace: {
-            is: {
-              members: { some: { userId: session.user.id } },
-            },
-          },
-        },
-      ],
+      AND: [projectWhereForUser(session.user.id)],
     },
     include: {
       workspace: { select: { id: true, name: true } },
@@ -55,8 +50,6 @@ export default async function ProjectDetailPage({
               tasks: {
                 where: { archivedAt: null },
                 orderBy: { position: "asc" },
-                // Sem limite artificial: o board precisa listar todas as
-                // tarefas ativas (ex.: coluna Concluído com 80+ itens).
                 select: {
                   id: true,
                   columnId: true,
@@ -93,22 +86,8 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const myMembership = project.members.find(
-    (m) => m.userId === session.user.id,
-  );
-  // Se não for ProjectMember explícito, verifica se é WorkspaceMember —
-  // nesse caso herda permissão de MEMBER (pode editar, não pode gerenciar membros).
-  const isWsMember = myMembership
-    ? false
-    : !!(await prisma.workspaceMember.findFirst({
-        where: { workspaceId: project.workspaceId, userId: session.user.id },
-        select: { id: true },
-      }));
-  const canEdit =
-    (!!myMembership && myMembership.role !== "VIEWER") || isWsMember;
-  const canManageMembers =
-    !!myMembership &&
-    (myMembership.role === "OWNER" || myMembership.role === "ADMIN");
+  const canEdit = access.canEdit;
+  const canManageMembers = access.canManageMembers;
   const board = project.boards[0];
   const isArchived = !!project.archivedAt;
 

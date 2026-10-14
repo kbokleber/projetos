@@ -1,23 +1,48 @@
 /**
  * Service do Dashboard de acompanhamento — leitura focada em visões
  * executivas voltadas para usuários humanos que querem ver o que a IA fez.
+ * Métricas de projeto/tarefa respeitam o acesso do usuário (ProjectMember
+ * ou Workspace OWNER/ADMIN).
  */
 
 import { prisma } from "@/lib/prisma";
 import { isCompletionColumnName } from "@/lib/task-completion";
+import { projectWhereForUser } from "@/lib/project-access";
+import type { Prisma } from "@/generated/prisma/client";
 
-async function completionColumnIds(workspaceId: string) {
+function accessibleProjectFilter(
+  workspaceId: string,
+  userId: string,
+): Prisma.ProjectWhereInput {
+  return {
+    workspaceId,
+    AND: [projectWhereForUser(userId)],
+  };
+}
+
+async function completionColumnIds(workspaceId: string, userId: string) {
   const columns = await prisma.boardColumn.findMany({
-    where: { board: { project: { workspaceId } } },
+    where: {
+      board: {
+        project: accessibleProjectFilter(workspaceId, userId),
+      },
+    },
     select: { id: true, name: true },
   });
   return columns.filter((c) => isCompletionColumnName(c.name)).map((c) => c.id);
 }
 
 /** Em aberto = ainda não concluída (sem completedAt e fora de colunas Concluído/Done). */
-function openTaskWhere(workspaceId: string, doneColumnIds: string[]) {
+function openTaskWhere(
+  workspaceId: string,
+  userId: string,
+  doneColumnIds: string[],
+): Prisma.TaskWhereInput {
   return {
-    project: { workspaceId, archivedAt: null },
+    project: {
+      ...accessibleProjectFilter(workspaceId, userId),
+      archivedAt: null,
+    },
     archivedAt: null,
     completedAt: null,
     ...(doneColumnIds.length > 0
@@ -26,15 +51,30 @@ function openTaskWhere(workspaceId: string, doneColumnIds: string[]) {
   };
 }
 
+/** Atividades do workspace em projetos acessíveis (ou sem projeto). */
+function activityProjectAccess(
+  workspaceId: string,
+  userId: string,
+): Prisma.ActivityWhereInput {
+  return {
+    workspaceId,
+    OR: [
+      { projectId: null },
+      { project: accessibleProjectFilter(workspaceId, userId) },
+    ],
+  };
+}
+
 export const dashboardService = {
-  async summary(workspaceId: string) {
+  async summary(workspaceId: string, userId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date(today);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const doneColumnIds = await completionColumnIds(workspaceId);
-    const openWhere = openTaskWhere(workspaceId, doneColumnIds);
+    const doneColumnIds = await completionColumnIds(workspaceId, userId);
+    const openWhere = openTaskWhere(workspaceId, userId, doneColumnIds);
+    const projectAccess = accessibleProjectFilter(workspaceId, userId);
 
     const [
       projectsActive,
@@ -45,12 +85,16 @@ export const dashboardService = {
       webhookDeliveriesLast7d,
     ] = await Promise.all([
       prisma.project.count({
-        where: { workspaceId, archivedAt: null, status: { in: ["ACTIVE", "PLANNING"] } },
+        where: {
+          ...projectAccess,
+          archivedAt: null,
+          status: { in: ["ACTIVE", "PLANNING"] },
+        },
       }),
       prisma.task.count({ where: openWhere }),
       prisma.task.count({
         where: {
-          project: { workspaceId },
+          project: projectAccess,
           completedAt: { gte: today, lte: endOfDay },
         },
       }),
@@ -62,7 +106,7 @@ export const dashboardService = {
       }),
       prisma.activity.count({
         where: {
-          workspaceId,
+          ...activityProjectAccess(workspaceId, userId),
           actorType: "API",
           action: "task.created",
           createdAt: { gte: today },
@@ -94,14 +138,17 @@ export const dashboardService = {
    */
   async recentActivity(
     workspaceId: string,
+    userId: string,
     limit = 20,
     options: { includeUserActions?: boolean } = {},
   ) {
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Prisma.ActivityWhereInput = {
+      ...activityProjectAccess(workspaceId, userId),
+    };
     if (!options.includeUserActions) {
       where.actorType = { in: ["API", "WEBHOOK", "SYSTEM"] };
     }
-    const items = await prisma.activity.findMany({
+    return prisma.activity.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -111,15 +158,17 @@ export const dashboardService = {
         task: { select: { id: true, title: true } },
       },
     });
-    return items;
   },
 
   /** Atividade agrupada por origem (USER, API, WEBHOOK, SYSTEM) — última semana. */
-  async activityByOrigin(workspaceId: string) {
+  async activityByOrigin(workspaceId: string, userId: string) {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const groups = await prisma.activity.groupBy({
       by: ["actorType"],
-      where: { workspaceId, createdAt: { gte: since } },
+      where: {
+        ...activityProjectAccess(workspaceId, userId),
+        createdAt: { gte: since },
+      },
       _count: true,
     });
     const map: Record<string, number> = {};
@@ -128,12 +177,14 @@ export const dashboardService = {
   },
 
   /** Tarefas criadas/atualizadas pela API nas últimas 24h. */
-  async recentApiTasks(workspaceId: string, limit = 10) {
+  async recentApiTasks(workspaceId: string, userId: string, limit = 10) {
     return prisma.activity.findMany({
       where: {
-        workspaceId,
+        ...activityProjectAccess(workspaceId, userId),
         actorType: "API",
-        action: { in: ["task.created", "task.updated", "task.moved", "task.completed"] },
+        action: {
+          in: ["task.created", "task.updated", "task.moved", "task.completed"],
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,

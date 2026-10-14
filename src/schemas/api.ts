@@ -57,6 +57,25 @@ export const listProjectsQuerySchema = z.object({
 
 export const projectParamsSchema = z.object({ projectId: cuid });
 
+export const addProjectMemberSchema = z
+  .object({
+    email: z.string().email().optional(),
+    userId: cuid.optional(),
+    role: z.enum(["ADMIN", "MEMBER", "VIEWER"]).default("MEMBER"),
+  })
+  .refine((v) => !!v.email || !!v.userId, {
+    message: "Informe email ou userId.",
+  });
+
+export const projectMemberParamsSchema = z.object({
+  projectId: cuid,
+  userId: cuid,
+});
+
+export const updateProjectMemberSchema = z.object({
+  role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
+});
+
 export const createBoardSchema = z.object({
   workspaceId: cuid.optional(),
   name: z.string().min(1).max(120),
