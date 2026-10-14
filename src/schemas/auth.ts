@@ -94,9 +94,33 @@ export const adminUpdateUserNameSchema = z.object({
     .max(120, "Nome muito longo"),
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Informe a senha atual"),
+    password: passwordField,
+    confirmPassword: confirmPasswordField,
+  })
+  .superRefine((data, ctx) => {
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "As senhas não conferem",
+        path: ["confirmPassword"],
+      });
+    }
+    if (data.currentPassword === data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A nova senha deve ser diferente da atual",
+        path: ["password"],
+      });
+    }
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>;
 export type AdminUpdateUserNameInput = z.infer<typeof adminUpdateUserNameSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

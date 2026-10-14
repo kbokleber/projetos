@@ -73,6 +73,11 @@ export default async function DashboardLayout({
           {navItem("/settings/webhooks", "Webhooks")}
           <div className="my-2 h-px bg-border" />
           <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Conta
+          </p>
+          {navItem("/settings/account", "Minha conta")}
+          <div className="my-2 h-px bg-border" />
+          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Administração
           </p>
           {navItem("/settings/users", "Usuários")}
@@ -89,6 +94,12 @@ export default async function DashboardLayout({
           <div className="mb-2 truncate text-xs">
             <p className="font-medium text-foreground">{session.user.name}</p>
             <p className="truncate text-muted-foreground">{session.user.email}</p>
+            <Link
+              href="/settings/account"
+              className="mt-1 inline-block text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Alterar senha
+            </Link>
           </div>
           <Button type="submit" variant="outline" size="sm" className="w-full">
             Sair

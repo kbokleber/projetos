@@ -121,6 +121,33 @@ export const authService = {
     return record.user;
   },
 
+  async changePassword(input: {
+    userId: string;
+    currentPassword: string;
+    password: string;
+  }) {
+    const user = await userRepository.findById(input.userId);
+    if (!user || !user.active) {
+      throw new AppError("UNAUTHORIZED", "Sessão inválida.", 401);
+    }
+    if (!user.passwordHash) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Esta conta não possui senha local para alterar.",
+        400,
+      );
+    }
+
+    const ok = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!ok) {
+      throw new AppError("VALIDATION_ERROR", "Senha atual incorreta.", 400);
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    await userRepository.updatePassword(user.id, passwordHash);
+    return user;
+  },
+
   async getActiveWorkspaces(userId: string) {
     await this.ensureWorkspaceMembership(userId);
     return prisma.workspace.findMany({

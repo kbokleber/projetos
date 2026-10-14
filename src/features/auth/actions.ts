@@ -4,14 +4,16 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth";
 import { authService } from "@/services/auth";
 import { AppError, toErrorResponse } from "@/lib/errors";
+import { auth } from "@/lib/auth";
 import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from "@/schemas/auth";
 
 export type ActionResult =
-  | { ok: true }
+  | { ok: true; message?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 function fieldErrors(zodError: import("zod").ZodError) {
@@ -113,4 +115,39 @@ export async function resetPasswordAction(
   }
 
   redirect("/login?reset=1");
+}
+
+export async function changePasswordAction(
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { ok: false, error: "Faça login para alterar a senha." };
+  }
+
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get("currentPassword"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Verifique os campos.",
+      fieldErrors: fieldErrors(parsed.error),
+    };
+  }
+
+  try {
+    await authService.changePassword({
+      userId: session.user.id,
+      currentPassword: parsed.data.currentPassword,
+      password: parsed.data.password,
+    });
+  } catch (error) {
+    return toActionResult(error);
+  }
+
+  return { ok: true, message: "Senha alterada com sucesso." };
 }
