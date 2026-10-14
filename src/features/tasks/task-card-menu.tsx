@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, type SyntheticEvent } from "react";
+import { useState, useTransition, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -37,6 +37,7 @@ export function TaskCardMenu({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const handleMove = (columnId: string) => {
     if (columnId === currentColumnId || pending) return;
@@ -54,13 +55,6 @@ export function TaskCardMenu({
   };
 
   const handleArchive = () => {
-    if (
-      !confirm(
-        "Arquivar esta tarefa? Ela deixará de aparecer no board. Você pode restaurá-la na aba Arquivadas.",
-      )
-    ) {
-      return;
-    }
     startTransition(async () => {
       try {
         await deleteTaskAction(taskId);
@@ -78,6 +72,7 @@ export function TaskCardMenu({
         }
         console.error("[TaskCardMenu] archive failed:", err);
       }
+      setConfirmArchive(false);
       router.refresh();
     });
   };
@@ -107,6 +102,8 @@ export function TaskCardMenu({
         sideOffset={4}
         className="z-[100] min-w-[12rem]"
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onEscapeKeyDown={() => setConfirmArchive(false)}
+        onInteractOutside={() => setConfirmArchive(false)}
       >
         <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
           Mover para
@@ -139,17 +136,45 @@ export function TaskCardMenu({
             Abrir detalhes
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={pending}
-          className="text-destructive focus:text-destructive"
-          onSelect={(e) => {
-            e.preventDefault();
-            handleArchive();
-          }}
-        >
-          <Trash2 className="size-3.5" />
-          Arquivar tarefa
-        </DropdownMenuItem>
+        {confirmArchive ? (
+          <>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Arquivar? Some do board (aba Arquivadas).
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={pending}
+              onSelect={(e) => {
+                e.preventDefault();
+                setConfirmArchive(false);
+              }}
+            >
+              Cancelar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={pending}
+              className="text-destructive focus:text-destructive"
+              onSelect={(e) => {
+                e.preventDefault();
+                handleArchive();
+              }}
+            >
+              <Trash2 className="size-3.5" />
+              {pending ? "Arquivando…" : "Sim, arquivar"}
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem
+            disabled={pending}
+            className="text-destructive focus:text-destructive"
+            onSelect={(e) => {
+              e.preventDefault();
+              setConfirmArchive(true);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            Arquivar tarefa
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

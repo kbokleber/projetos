@@ -288,13 +288,6 @@ export function TaskDetailsPanel(props: {
             checklists={checklists}
           />
 
-          <TaskAttachments
-            taskId={taskId}
-            canEdit={canEditContent}
-            attachments={attachments}
-            variant="teams"
-          />
-
           <section className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm">
             <h2 className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <MessageSquare className="size-3.5" />
@@ -377,6 +370,13 @@ export function TaskDetailsPanel(props: {
               </form>
             )}
           </section>
+
+          <TaskAttachments
+            taskId={taskId}
+            canEdit={canEditContent}
+            attachments={attachments}
+            variant="teams"
+          />
         </div>
 
         <aside className="flex flex-col gap-3 lg:sticky lg:top-4 lg:self-start">
@@ -402,7 +402,15 @@ export function TaskDetailsPanel(props: {
             </PropertyRow>
 
             <PropertyRow icon={<Columns3 className="size-3.5" />} label="Bucket">
-              <span className="px-1 text-sm">{currentColumnName}</span>
+              {canReopenOrMove ? (
+                <BucketSelect
+                  taskId={taskId}
+                  columns={columns}
+                  currentColumnId={currentColumnId}
+                />
+              ) : (
+                <span className="px-1 text-sm">{currentColumnName}</span>
+              )}
             </PropertyRow>
 
             {completed && initial.completedAt && (
@@ -480,34 +488,24 @@ export function TaskDetailsPanel(props: {
                 <span className="text-xs text-muted-foreground">h</span>
               </div>
             </PropertyRow>
-
-            <div className="mt-3 border-t border-border/70 pt-3">
-              <Button
-                type="submit"
-                form={formId}
-                className="w-full"
-                disabled={!canEditMeta || updating}
-                title={
-                  contentLocked
-                    ? archived
-                      ? "Tarefa arquivada — somente leitura"
-                      : "Reabra a tarefa para salvar alterações"
-                    : undefined
-                }
-              >
-                <Save className="size-4" />
-                {updating ? "Salvando…" : "Salvar"}
-              </Button>
-            </div>
           </div>
 
-          {canReopenOrMove && (
-            <MoveBucketForm
-              taskId={taskId}
-              columns={columns}
-              currentColumnId={currentColumnId}
-            />
-          )}
+          <Button
+            type="submit"
+            form={formId}
+            className="w-full"
+            disabled={!canEditMeta || updating}
+            title={
+              contentLocked
+                ? archived
+                  ? "Tarefa arquivada — somente leitura"
+                  : "Reabra a tarefa para salvar alterações"
+                : undefined
+            }
+          >
+            <Save className="size-4" />
+            {updating ? "Salvando…" : "Salvar"}
+          </Button>
 
           {canReopenOrMove && (
             <DeleteTaskButton taskId={taskId} projectId={projectId} />
@@ -538,7 +536,7 @@ function PropertyRow({
   );
 }
 
-function MoveBucketForm({
+function BucketSelect({
   taskId,
   columns,
   currentColumnId,
@@ -551,18 +549,13 @@ function MoveBucketForm({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="rounded-xl border border-border/80 bg-card/80 p-3 shadow-sm">
-      <label
-        htmlFor="columnId"
-        className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground"
-      >
-        <Columns3 className="size-3.5" />
-        Mover para bucket
-      </label>
+    <div>
       <select
         id="columnId"
+        key={currentColumnId}
         defaultValue={currentColumnId}
         disabled={pending}
+        aria-label="Mover para bucket"
         className={selectClass}
         onChange={(e) => {
           const columnId = e.target.value;
@@ -625,55 +618,89 @@ function DeleteTaskButton({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function runArchive() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteTaskAction(taskId);
+        router.push(`/projects/${projectId}?tab=archived`);
+        router.refresh();
+      } catch (err) {
+        if (
+          typeof err === "object" &&
+          err !== null &&
+          "digest" in err &&
+          String((err as { digest?: string }).digest).startsWith(
+            "NEXT_REDIRECT",
+          )
+        ) {
+          router.push(`/projects/${projectId}?tab=archived`);
+          router.refresh();
+          return;
+        }
+        setConfirming(false);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Não foi possível arquivar a tarefa.",
+        );
+      }
+    });
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+        <p className="text-sm font-medium text-foreground">
+          Arquivar esta tarefa?
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Ela some do board. Dá para restaurar depois na aba Arquivadas.
+        </p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={pending}
+            onClick={() => {
+              setConfirming(false);
+              setError(null);
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="w-full"
+            disabled={pending}
+            onClick={runArchive}
+          >
+            <Trash2 className="size-3.5" />
+            {pending ? "Arquivando…" : "Sim, arquivar"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-1 px-1">
+    <div className="flex flex-col gap-1.5">
       {error && <p className="text-xs text-destructive">{error}</p>}
       <Button
         type="button"
-        variant="ghost"
-        size="sm"
+        variant="destructive"
+        className="w-full"
         disabled={pending}
-        className="justify-start text-muted-foreground hover:text-destructive"
-        onClick={() => {
-          if (
-            !confirm(
-              "Arquivar esta tarefa? Ela deixará de aparecer no board. Você pode restaurá-la na aba Arquivadas.",
-            )
-          ) {
-            return;
-          }
-          setError(null);
-          startTransition(async () => {
-            try {
-              await deleteTaskAction(taskId);
-              router.push(`/projects/${projectId}?tab=archived`);
-              router.refresh();
-            } catch (err) {
-              if (
-                typeof err === "object" &&
-                err !== null &&
-                "digest" in err &&
-                String((err as { digest?: string }).digest).startsWith(
-                  "NEXT_REDIRECT",
-                )
-              ) {
-                router.push(`/projects/${projectId}?tab=archived`);
-                router.refresh();
-                return;
-              }
-              setError(
-                err instanceof Error
-                  ? err.message
-                  : "Não foi possível arquivar a tarefa.",
-              );
-            }
-          });
-        }}
+        onClick={() => setConfirming(true)}
       >
         <Trash2 className="size-3.5" />
-        {pending ? "Arquivando…" : "Arquivar tarefa"}
+        Arquivar tarefa
       </Button>
     </div>
   );
