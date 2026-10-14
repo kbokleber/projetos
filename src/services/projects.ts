@@ -197,6 +197,20 @@ export const projectService = {
       },
     });
 
+    // Ao concluir ou cancelar o projeto, arquiva tarefas ainda abertas
+    const closing =
+      input.status === "COMPLETED" || input.status === "CANCELLED";
+    if (closing && existing.status !== input.status) {
+      await prisma.task.updateMany({
+        where: {
+          projectId,
+          archivedAt: null,
+          completedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+    }
+
     await prisma.activity.create({
       data: {
         workspaceId: existing.workspaceId,

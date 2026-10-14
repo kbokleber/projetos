@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import {
+  useActionState,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -49,11 +55,15 @@ export type ProjectFormProps = {
 
 export function ProjectForm(props: ProjectFormProps) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const skipCompleteConfirm = useRef(false);
   const initial = props.initialValues;
   const [color, setColor] = useState<string | null>(initial?.color ?? null);
+  const [status, setStatus] = useState(initial?.status ?? "ACTIVE");
   const [archiving, startArchive] = useTransition();
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmClosing, setConfirmClosing] = useState(false);
 
   const bound =
     props.mode === "create"
@@ -74,8 +84,27 @@ export function ProjectForm(props: ProjectFormProps) {
     }, 0);
   }
 
+  const isClosingStatus = status === "COMPLETED" || status === "CANCELLED";
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (skipCompleteConfirm.current) {
+      skipCompleteConfirm.current = false;
+      return;
+    }
+    if (props.mode !== "edit") return;
+    if (!isClosingStatus) return;
+    if (status === (initial?.status ?? "")) return;
+    event.preventDefault();
+    setConfirmClosing(true);
+  }
+
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-6"
+    >
       {state && !state.ok && (
         <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}
@@ -132,16 +161,24 @@ export function ProjectForm(props: ProjectFormProps) {
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field
-          label="Status"
-          name="status"
-          as="select"
-          defaultValue={initial?.status ?? "ACTIVE"}
-          options={PROJECT_STATUSES.map((s) => ({
-            value: s,
-            label: PROJECT_STATUS_LABELS[s],
-          }))}
-        />
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="f-status" className="text-sm">
+            Status
+          </label>
+          <select
+            id="f-status"
+            name="status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {PROJECT_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {PROJECT_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm">Cor</label>
           <div className="flex flex-wrap gap-2">
@@ -320,6 +357,31 @@ export function ProjectForm(props: ProjectFormProps) {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmClosing}
+        onOpenChange={(next) => {
+          if (pending) return;
+          setConfirmClosing(next);
+        }}
+        title={
+          status === "CANCELLED"
+            ? "Cancelar este projeto?"
+            : "Concluir este projeto?"
+        }
+        description="As tarefas ainda não concluídas serão arquivadas automaticamente. Depois dá para restaurá-las na aba Arquivadas."
+        confirmLabel={
+          status === "CANCELLED" ? "Sim, cancelar" : "Sim, concluir"
+        }
+        variant="default"
+        pending={pending}
+        pendingLabel="Salvando…"
+        onConfirm={() => {
+          skipCompleteConfirm.current = true;
+          setConfirmClosing(false);
+          formRef.current?.requestSubmit();
+        }}
+      />
     </form>
   );
 }
