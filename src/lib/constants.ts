@@ -8,6 +8,23 @@ export const PROJECT_STATUSES = [
   "CANCELLED",
 ] as const;
 
+export type ProjectStatusValue = (typeof PROJECT_STATUSES)[number];
+
+/** Rótulos em português para exibição na UI (valores no banco permanecem em inglês). */
+export const PROJECT_STATUS_LABELS: Record<ProjectStatusValue, string> = {
+  PLANNING: "Planejamento",
+  ACTIVE: "Ativo",
+  ON_HOLD: "Em espera",
+  COMPLETED: "Concluído",
+  CANCELLED: "Cancelado",
+};
+
+export function projectStatusLabel(status: string): string {
+  return (
+    PROJECT_STATUS_LABELS[status as ProjectStatusValue] ?? status
+  );
+}
+
 export const PROJECT_ROLES = ["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const;
 
 export const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;

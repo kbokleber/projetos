@@ -122,7 +122,7 @@ export async function updateProjectAction(
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         color: parsed.data.color ?? null,
-        icon: parsed.data.icon ?? null,
+        ...(parsed.data.icon !== undefined ? { icon: parsed.data.icon ?? null } : {}),
         status: parsed.data.status,
         startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
@@ -146,6 +146,17 @@ export async function updateProjectAction(
       return { ok: false, error: err.message };
     }
     console.error("[updateProject]", err);
+    const detail = err instanceof Error ? err.message : "";
+    if (detail.includes("logoPath") || detail.includes("Unknown field")) {
+      return {
+        ok: false,
+        error:
+          "Servidor desatualizado (campo logo). Reinicie o npm run dev e tente de novo.",
+      };
+    }
+    if (detail.includes("Logo") || detail.includes("imagem") || detail.includes("MB")) {
+      return { ok: false, error: detail };
+    }
     return { ok: false, error: "Não foi possível salvar o projeto." };
   }
 }

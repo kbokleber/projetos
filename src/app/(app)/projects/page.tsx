@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { projectWhereForUser } from "@/lib/project-access";
 import { ProjectLogo } from "@/components/project-logo";
+import { projectStatusLabel } from "@/lib/constants";
 
 export default async function ProjectsPage() {
   const session = await auth();
@@ -76,7 +77,7 @@ export default async function ProjectsPage() {
                 </p>
               )}
               <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{p.status}</span>
+                <span>{projectStatusLabel(p.status)}</span>
                 <span>{p._count.tasks} tarefas</span>
               </div>
             </Link>

@@ -21,10 +21,10 @@ export function ProjectLogo({
 }: Props) {
   const dims =
     size === "header"
-      ? "size-10 rounded-lg"
+      ? "size-16 rounded-xl sm:size-20"
       : size === "form"
-        ? "size-16 rounded-lg"
-        : "size-8 rounded-md";
+        ? "size-24 rounded-xl"
+        : "size-12 rounded-lg";
 
   if (logoPath) {
     const v = updatedAt
@@ -41,7 +41,7 @@ export function ProjectLogo({
         alt=""
         className={cn(
           dims,
-          "shrink-0 object-cover ring-1 ring-border",
+          "shrink-0 bg-background object-contain p-1.5 ring-1 ring-border",
           className,
         )}
       />

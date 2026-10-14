@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PROJECT_STATUSES } from "@/lib/constants";
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS } from "@/lib/constants";
 import {
   createProjectAction,
   updateProjectAction,
@@ -75,11 +75,7 @@ export function ProjectForm(props: ProjectFormProps) {
   }
 
   return (
-    <form
-      action={formAction}
-      encType="multipart/form-data"
-      className="flex flex-col gap-6"
-    >
+    <form action={formAction} className="flex flex-col gap-6">
       {state && !state.ok && (
         <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}
@@ -141,7 +137,10 @@ export function ProjectForm(props: ProjectFormProps) {
           name="status"
           as="select"
           defaultValue={initial?.status ?? "ACTIVE"}
-          options={PROJECT_STATUSES.map((s) => ({ value: s, label: s }))}
+          options={PROJECT_STATUSES.map((s) => ({
+            value: s,
+            label: PROJECT_STATUS_LABELS[s],
+          }))}
         />
         <div className="flex flex-col gap-1.5">
           <label className="text-sm">Cor</label>

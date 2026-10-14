@@ -23,6 +23,7 @@ import {
   projectWhereForUser,
 } from "@/lib/project-access";
 import { ProjectLogo } from "@/components/project-logo";
+import { projectStatusLabel } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -174,7 +175,7 @@ export default async function ProjectDetailPage({
               )}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {project.workspace.name} · {project.status} ·{" "}
+              {project.workspace.name} · {projectStatusLabel(project.status)} ·{" "}
               {project._count.tasks} tarefas ·{" "}
               {project.members.length}{" "}
               {project.members.length === 1 ? "membro" : "membros"}
@@ -349,7 +350,7 @@ function Overview({
         <h2 className="mb-3 text-sm font-medium">Detalhes</h2>
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <dt className="text-muted-foreground">Status</dt>
-          <dd>{project.status}</dd>
+          <dd>{projectStatusLabel(project.status)}</dd>
           <dt className="text-muted-foreground">Início</dt>
           <dd>{fmt(project.startDate)}</dd>
           <dt className="text-muted-foreground">Prazo</dt>
