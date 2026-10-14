@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TASK_PRIORITIES } from "@/lib/constants";
 import {
   createCommentAction,
@@ -618,90 +619,71 @@ function DeleteTaskButton({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function runArchive() {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await deleteTaskAction(taskId);
-        router.push(`/projects/${projectId}?tab=archived`);
-        router.refresh();
-      } catch (err) {
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "digest" in err &&
-          String((err as { digest?: string }).digest).startsWith(
-            "NEXT_REDIRECT",
-          )
-        ) {
-          router.push(`/projects/${projectId}?tab=archived`);
-          router.refresh();
-          return;
-        }
-        setConfirming(false);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Não foi possível arquivar a tarefa.",
-        );
-      }
-    });
-  }
-
-  if (confirming) {
-    return (
-      <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-        <p className="text-sm font-medium text-foreground">
-          Arquivar esta tarefa?
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Ela some do board. Dá para restaurar depois na aba Arquivadas.
-        </p>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={pending}
-            onClick={() => {
-              setConfirming(false);
-              setError(null);
-            }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            className="w-full"
-            disabled={pending}
-            onClick={runArchive}
-          >
-            <Trash2 className="size-3.5" />
-            {pending ? "Arquivando…" : "Sim, arquivar"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-1.5">
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && !open ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : null}
       <Button
         type="button"
         variant="destructive"
         className="w-full"
         disabled={pending}
-        onClick={() => setConfirming(true)}
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
       >
         <Trash2 className="size-3.5" />
         Arquivar tarefa
       </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(next) => {
+          if (pending) return;
+          setOpen(next);
+          if (!next) setError(null);
+        }}
+        title="Arquivar esta tarefa?"
+        description="Ela some do board. Dá para restaurar depois na aba Arquivadas."
+        confirmLabel="Sim, arquivar"
+        pending={pending}
+        pendingLabel="Arquivando…"
+        error={error}
+        onConfirm={() => {
+          setError(null);
+          startTransition(async () => {
+            try {
+              await deleteTaskAction(taskId);
+              setOpen(false);
+              router.push(`/projects/${projectId}?tab=archived`);
+              router.refresh();
+            } catch (err) {
+              if (
+                typeof err === "object" &&
+                err !== null &&
+                "digest" in err &&
+                String((err as { digest?: string }).digest).startsWith(
+                  "NEXT_REDIRECT",
+                )
+              ) {
+                setOpen(false);
+                router.push(`/projects/${projectId}?tab=archived`);
+                router.refresh();
+                return;
+              }
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : "Não foi possível arquivar a tarefa.",
+              );
+            }
+          });
+        }}
+      />
     </div>
   );
 }

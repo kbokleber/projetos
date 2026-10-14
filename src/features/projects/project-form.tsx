@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PROJECT_STATUSES } from "@/lib/constants";
 import {
   createProjectAction,
@@ -50,6 +51,7 @@ export function ProjectForm(props: ProjectFormProps) {
   const [color, setColor] = useState<string | null>(initial?.color ?? null);
   const [archiving, startArchive] = useTransition();
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const bound =
     props.mode === "create"
@@ -219,19 +221,34 @@ export function ProjectForm(props: ProjectFormProps) {
           </Button>
         </div>
         {props.mode === "edit" && props.showArchive && props.projectId && (
+          <>
           <Button
             type="button"
             variant="destructive"
             size="sm"
             disabled={archiving || pending}
             onClick={() => {
-              if (
-                !confirm(
-                  "Arquivar este projeto? Ele deixará de aparecer na lista.",
-                )
-              ) {
-                return;
-              }
+              setArchiveError(null);
+              setConfirmArchive(true);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            {props.archiveLabel ?? "Arquivar projeto"}
+          </Button>
+          <ConfirmDialog
+            open={confirmArchive}
+            onOpenChange={(next) => {
+              if (archiving) return;
+              setConfirmArchive(next);
+              if (!next) setArchiveError(null);
+            }}
+            title="Arquivar este projeto?"
+            description="Ele deixará de aparecer na lista."
+            confirmLabel="Sim, arquivar"
+            pending={archiving}
+            pendingLabel="Arquivando…"
+            error={archiveError}
+            onConfirm={() => {
               setArchiveError(null);
               startArchive(async () => {
                 try {
@@ -256,17 +273,10 @@ export function ProjectForm(props: ProjectFormProps) {
                 }
               });
             }}
-          >
-            <Trash2 className="size-4" />
-            {archiving
-              ? "Arquivando..."
-              : (props.archiveLabel ?? "Arquivar")}
-          </Button>
+          />
+          </>
         )}
       </div>
-      {archiveError && (
-        <p className="text-sm text-destructive">{archiveError}</p>
-      )}
     </form>
   );
 }

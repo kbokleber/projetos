@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { CreateTokenForm } from "@/features/api-tokens/create-form";
 import { TokenList } from "@/features/api-tokens/token-list";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import {
+  getWorkspaceMemberRole,
+  isWorkspaceAdmin,
+} from "@/lib/workspace-admin";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +28,9 @@ export default async function SettingsApiPage() {
       </div>
     );
   }
+
+  const role = await getWorkspaceMemberRole(session.user.id, active.id);
+  if (!isWorkspaceAdmin(role)) redirect("/dashboard");
 
   const tokens = await prisma.apiToken.findMany({
     where: {

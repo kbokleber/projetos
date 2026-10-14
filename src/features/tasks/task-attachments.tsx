@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Paperclip, Download, Trash2, Upload, FileIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   deleteTaskAttachmentAction,
   uploadTaskAttachmentAction,
@@ -46,6 +47,7 @@ export function TaskAttachments({
     FormData
   >(boundUpload, undefined);
   const [deleting, startDelete] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<AttachmentItem | null>(null);
   const teams = variant === "teams";
 
   useEffect(() => {
@@ -161,13 +163,7 @@ export function TaskAttachments({
                     disabled={deleting}
                     className="text-muted-foreground hover:text-destructive"
                     title="Remover"
-                    onClick={() => {
-                      if (!confirm(`Remover anexo "${a.fileName}"?`)) return;
-                      startDelete(async () => {
-                        await deleteTaskAttachmentAction(a.id);
-                        router.refresh();
-                      });
-                    }}
+                    onClick={() => setDeleteTarget(a)}
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
@@ -177,6 +173,34 @@ export function TaskAttachments({
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(next) => {
+          if (!next && deleting) return;
+          if (!next) setDeleteTarget(null);
+        }}
+        title="Remover anexo?"
+        description={
+          deleteTarget ? (
+            <>
+              Remover o anexo <strong>{deleteTarget.fileName}</strong>?
+            </>
+          ) : undefined
+        }
+        confirmLabel="Sim, remover"
+        pending={deleting}
+        pendingLabel="Removendo…"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          const id = deleteTarget.id;
+          startDelete(async () => {
+            await deleteTaskAttachmentAction(id);
+            setDeleteTarget(null);
+            router.refresh();
+          });
+        }}
+      />
     </section>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   addProjectMemberAction,
   changeProjectMemberRoleAction,
@@ -37,6 +38,7 @@ export function MembersManager({
 
   const [removing, startRemove] = useTransition();
   const [changing, startChange] = useTransition();
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">
@@ -140,17 +142,7 @@ export function MembersManager({
                           ? "Não é possível remover o único OWNER"
                           : "Remover"
                       }
-                      onClick={() =>
-                        startRemove(async () => {
-                          if (
-                            !confirm(
-                              `Remover ${m.name ?? m.email} do projeto?`,
-                            )
-                          )
-                            return;
-                          await removeProjectMemberAction(projectId, m.userId);
-                        })
-                      }
+                      onClick={() => setRemoveTarget(m)}
                     >
                       <UserMinus className="size-4" />
                     </Button>
@@ -165,6 +157,35 @@ export function MembersManager({
           );
         })}
       </ul>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(next) => {
+          if (!next && removing) return;
+          if (!next) setRemoveTarget(null);
+        }}
+        title="Remover membro do projeto?"
+        description={
+          removeTarget ? (
+            <>
+              Remover{" "}
+              <strong>{removeTarget.name ?? removeTarget.email}</strong> do
+              projeto?
+            </>
+          ) : undefined
+        }
+        confirmLabel="Sim, remover"
+        pending={removing}
+        pendingLabel="Removendo…"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          const target = removeTarget;
+          startRemove(async () => {
+            await removeProjectMemberAction(projectId, target.userId);
+            setRemoveTarget(null);
+          });
+        }}
+      />
     </section>
   );
 }

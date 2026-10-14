@@ -1,4 +1,8 @@
+"use client";
+
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { dateTimeBR } from "@/lib/format-date";
 
 type WebhookSummary = {
@@ -27,6 +31,9 @@ export function WebhookList({
   onToggle: (formData: FormData) => void | Promise<void>;
   onDelete: (formData: FormData) => void | Promise<void>;
 }) {
+  const [deleteTarget, setDeleteTarget] = useState<WebhookSummary | null>(null);
+  const [pending, startTransition] = useTransition();
+
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <h2 className="mb-3 text-sm font-medium">Webhooks configurados</h2>
@@ -103,18 +110,49 @@ export function WebhookList({
                       {w.active ? "Pausar" : "Ativar"}
                     </Button>
                   </form>
-                  <form action={onDelete}>
-                    <input type="hidden" name="webhookId" value={w.id} />
-                    <Button type="submit" variant="destructive" size="sm">
-                      Remover
-                    </Button>
-                  </form>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteTarget(w)}
+                  >
+                    Remover
+                  </Button>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(next) => {
+          if (!next && pending) return;
+          if (!next) setDeleteTarget(null);
+        }}
+        title="Remover webhook?"
+        description={
+          deleteTarget ? (
+            <>
+              Remover o webhook <strong>{deleteTarget.name}</strong>? Esta ação
+              não pode ser desfeita.
+            </>
+          ) : undefined
+        }
+        confirmLabel="Sim, remover"
+        pending={pending}
+        pendingLabel="Removendo…"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          const fd = new FormData();
+          fd.set("webhookId", deleteTarget.id);
+          startTransition(async () => {
+            await onDelete(fd);
+            setDeleteTarget(null);
+          });
+        }}
+      />
     </section>
   );
 }

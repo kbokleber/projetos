@@ -2,6 +2,10 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import {
+  getWorkspaceMemberRole,
+  isWorkspaceAdmin,
+} from "@/lib/workspace-admin";
 import { workspaceService } from "@/services/workspaces";
 import { CreateWorkspaceForm } from "@/features/workspaces/create-form";
 import { WorkspaceMembersPanel } from "@/features/workspaces/members-panel";
@@ -16,12 +20,15 @@ export default async function SettingsWorkspacesPage() {
   if (!session?.user) redirect("/login");
 
   const { active } = await resolveActiveWorkspace(session.user.id);
+  if (!active) redirect("/dashboard");
+
+  const role = await getWorkspaceMemberRole(session.user.id, active.id);
+  if (!isWorkspaceAdmin(role)) redirect("/dashboard");
+
   const workspaces = await workspaceService.listForUser(session.user.id);
 
-  const activeId = active?.id ?? workspaces[0]?.id;
-  const members = activeId
-    ? await workspaceService.listMembers(session.user.id, activeId)
-    : [];
+  const activeId = active.id;
+  const members = await workspaceService.listMembers(session.user.id, activeId);
 
   const activeMeta = workspaces.find((w) => w.id === activeId);
   const myRole = activeMeta?.members[0]?.role;

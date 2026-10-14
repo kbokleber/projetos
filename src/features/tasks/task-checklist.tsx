@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { useRouter } from "next/navigation";
 import { Circle, CircleCheck, ListChecks, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   addChecklistItemAction,
   deleteChecklistItemAction,
@@ -144,6 +145,7 @@ function ChecklistRow({
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState(item.description);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setText(item.description);
@@ -229,15 +231,7 @@ function ChecklistRow({
           disabled={pending}
           title="Remover item"
           className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-          onClick={() => {
-            if (!confirm("Remover este item da lista?")) return;
-            startTransition(async () => {
-              setError(null);
-              const res = await deleteChecklistItemAction(item.id);
-              if (!res.ok) setError(res.error);
-              router.refresh();
-            });
-          }}
+          onClick={() => setConfirmDelete(true)}
         >
           <Trash2 className="size-3.5" />
         </button>
@@ -245,6 +239,30 @@ function ChecklistRow({
       {error && (
         <span className="w-full text-[11px] text-destructive">{error}</span>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(next) => {
+          if (pending) return;
+          setConfirmDelete(next);
+        }}
+        title="Remover item da lista?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, remover"
+        pending={pending}
+        pendingLabel="Removendo…"
+        onConfirm={() => {
+          startTransition(async () => {
+            setError(null);
+            const res = await deleteChecklistItemAction(item.id);
+            if (!res.ok) {
+              setError(res.error);
+              return;
+            }
+            setConfirmDelete(false);
+            router.refresh();
+          });
+        }}
+      />
     </li>
   );
 }

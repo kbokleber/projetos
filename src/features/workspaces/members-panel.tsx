@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   addWorkspaceMemberAction,
   removeWorkspaceMemberAction,
@@ -26,6 +27,10 @@ export function WorkspaceMembersPanel({
   canManage: boolean;
   currentUserId: string;
 }) {
+  const router = useRouter();
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [pending, startTransition] = useTransition();
+
   return (
     <div className="flex flex-col gap-4">
       <ul className="divide-y divide-border rounded-lg border border-border">
@@ -45,13 +50,14 @@ export function WorkspaceMembersPanel({
               {canManage &&
                 m.role !== "OWNER" &&
                 m.user.id !== currentUserId && (
-                  <form action={removeWorkspaceMemberAction}>
-                    <input type="hidden" name="workspaceId" value={workspaceId} />
-                    <input type="hidden" name="memberId" value={m.id} />
-                    <Button type="submit" variant="ghost" size="sm">
-                      Remover
-                    </Button>
-                  </form>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRemoveTarget(m)}
+                  >
+                    Remover
+                  </Button>
                 )}
             </div>
           </li>
@@ -59,6 +65,37 @@ export function WorkspaceMembersPanel({
       </ul>
 
       {canManage && <AddMemberForm workspaceId={workspaceId} />}
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(next) => {
+          if (!next && pending) return;
+          if (!next) setRemoveTarget(null);
+        }}
+        title="Remover membro do workspace?"
+        description={
+          removeTarget ? (
+            <>
+              Remover <strong>{removeTarget.user.name}</strong> (
+              {removeTarget.user.email}) deste workspace?
+            </>
+          ) : undefined
+        }
+        confirmLabel="Sim, remover"
+        pending={pending}
+        pendingLabel="Removendo…"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          const fd = new FormData();
+          fd.set("workspaceId", workspaceId);
+          fd.set("memberId", removeTarget.id);
+          startTransition(async () => {
+            await removeWorkspaceMemberAction(fd);
+            setRemoveTarget(null);
+            router.refresh();
+          });
+        }}
+      />
     </div>
   );
 }

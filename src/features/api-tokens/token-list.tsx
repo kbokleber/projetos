@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { revokeApiTokenAction } from "@/features/api-tokens/actions";
 import { dateTimeBR } from "@/lib/format-date";
 
@@ -17,25 +18,8 @@ type Token = {
 
 export function TokenList({ tokens }: { tokens: Token[] }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Token | null>(null);
   const [, startTransition] = useTransition();
-
-  function handleRevoke(token: Token) {
-    const ok = confirm(
-      `Revogar o token "${token.name}"?\n\n` +
-        `Ele deixará de funcionar imediatamente. Esta ação não pode ser desfeita.`,
-    );
-    if (!ok) return;
-    const fd = new FormData();
-    fd.set("tokenId", token.id);
-    setPendingId(token.id);
-    startTransition(async () => {
-      try {
-        await revokeApiTokenAction(fd);
-      } finally {
-        setPendingId(null);
-      }
-    });
-  }
 
   if (tokens.length === 0) {
     return (
@@ -89,7 +73,7 @@ export function TokenList({ tokens }: { tokens: Token[] }) {
                 variant="destructive"
                 size="sm"
                 disabled={busy}
-                onClick={() => handleRevoke(t)}
+                onClick={() => setRevokeTarget(t)}
               >
                 {busy ? "Revogando..." : "Revogar"}
               </Button>
@@ -97,6 +81,38 @@ export function TokenList({ tokens }: { tokens: Token[] }) {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        onOpenChange={(next) => {
+          if (!next && pendingId) return;
+          if (!next) setRevokeTarget(null);
+        }}
+        title={
+          revokeTarget
+            ? `Revogar o token "${revokeTarget.name}"?`
+            : "Revogar token?"
+        }
+        description="Ele deixará de funcionar imediatamente. Esta ação não pode ser desfeita."
+        confirmLabel="Sim, revogar"
+        pending={!!pendingId}
+        pendingLabel="Revogando…"
+        onConfirm={() => {
+          if (!revokeTarget) return;
+          const token = revokeTarget;
+          const fd = new FormData();
+          fd.set("tokenId", token.id);
+          setPendingId(token.id);
+          startTransition(async () => {
+            try {
+              await revokeApiTokenAction(fd);
+              setRevokeTarget(null);
+            } finally {
+              setPendingId(null);
+            }
+          });
+        }}
+      />
     </section>
   );
 }

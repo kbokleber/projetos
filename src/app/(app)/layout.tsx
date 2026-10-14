@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/features/auth/actions";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { AppError } from "@/lib/errors";
+import {
+  getWorkspaceMemberRole,
+  isWorkspaceAdmin,
+} from "@/lib/workspace-admin";
 import { cn } from "@/lib/utils";
 import { WorkspaceSwitcher } from "@/features/workspaces/workspace-switcher";
 
@@ -35,6 +39,12 @@ export default async function DashboardLayout({
 
   const hdrs = await headers();
   const pathname = hdrs.get("x-pathname") ?? "";
+  const workspaceRole = activeWorkspace
+    ? await getWorkspaceMemberRole(session.user.id, activeWorkspace.id)
+    : null;
+  const canManageWorkspace = isWorkspaceAdmin(workspaceRole);
+  const canSeeUsers = session.user.role === "ADMIN";
+  const canSeeAdminNav = canManageWorkspace || canSeeUsers;
   const navItem = (href: string, label: string) => {
     const active =
       pathname === href || pathname.startsWith(href + "/");
@@ -66,18 +76,29 @@ export default async function DashboardLayout({
           {navItem("/dashboard", "Dashboard")}
           {navItem("/projects", "Projetos")}
           {navItem("/my-tasks", "Minhas tarefas")}
-          <div className="my-2 h-px bg-border" />
-          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Integrações
-          </p>
-          {navItem("/settings/api", "Tokens de API")}
-          {navItem("/settings/webhooks", "Webhooks")}
-          <div className="my-2 h-px bg-border" />
-          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Administração
-          </p>
-          {navItem("/settings/users", "Usuários")}
-          {navItem("/settings/workspaces", "Workspaces")}
+          {canManageWorkspace ? (
+            <>
+              <div className="my-2 h-px bg-border" />
+              <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Integrações
+              </p>
+              {navItem("/settings/api", "Tokens de API")}
+              {navItem("/settings/webhooks", "Webhooks")}
+              {navItem("/settings/ai", "IA / OpenAI")}
+            </>
+          ) : null}
+          {canSeeAdminNav ? (
+            <>
+              <div className="my-2 h-px bg-border" />
+              <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Administração
+              </p>
+              {canSeeUsers ? navItem("/settings/users", "Usuários") : null}
+              {canManageWorkspace
+                ? navItem("/settings/workspaces", "Workspaces")
+                : null}
+            </>
+          ) : null}
         </nav>
         <div className="shrink-0 border-t border-sidebar-border p-3 text-xs">
           <p className="font-medium text-foreground">Workspace ativo</p>

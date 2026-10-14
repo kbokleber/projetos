@@ -7,7 +7,9 @@ export type AppErrorCode =
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
   | "TASK_NOT_FOUND"
-  | "PROJECT_NOT_FOUND";
+  | "PROJECT_NOT_FOUND"
+  | "CONFIG_ERROR"
+  | "UPSTREAM_ERROR";
 
 export class AppError extends Error {
   readonly code: AppErrorCode;

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { webhookService } from "@/services/webhooks";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { AppError } from "@/lib/errors";
+import { assertWorkspaceAdmin } from "@/lib/workspace-admin";
 import { z } from "zod";
 
 export async function createWebhookAction(
@@ -16,6 +18,13 @@ export async function createWebhookAction(
 
   const { active } = await resolveActiveWorkspace(session.user.id);
   if (!active) return { ok: false, error: "Usuário sem workspace." };
+
+  try {
+    await assertWorkspaceAdmin(session.user.id, active.id);
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    return { ok: false, error: "Sem permissão." };
+  }
 
   const schema = z.object({
     name: z.string().min(1).max(80),
@@ -59,6 +68,12 @@ export async function toggleWebhookAction(formData: FormData) {
   const { active } = await resolveActiveWorkspace(session.user.id);
   if (!active) return;
 
+  try {
+    await assertWorkspaceAdmin(session.user.id, active.id);
+  } catch {
+    return;
+  }
+
   const webhooks = await prisma.webhook.findMany({
     where: { id, workspaceId: active.id },
     take: 1,
@@ -80,6 +95,12 @@ export async function deleteWebhookAction(formData: FormData) {
 
   const { active } = await resolveActiveWorkspace(session.user.id);
   if (!active) return;
+
+  try {
+    await assertWorkspaceAdmin(session.user.id, active.id);
+  } catch {
+    return;
+  }
 
   await prisma.webhook.deleteMany({
     where: { id, workspaceId: active.id },

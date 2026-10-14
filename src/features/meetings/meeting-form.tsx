@@ -28,6 +28,7 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  FileUp,
   Link2,
   Lock,
   Save,
@@ -37,6 +38,9 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ImportMeetingDialog } from "@/features/meetings/import-meeting-dialog";
+import type { MeetingImportDraft } from "@/services/meeting-import";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function useDismissOnOutside(
   open: boolean,
@@ -115,12 +119,21 @@ export function MeetingForm(props: MeetingFormProps) {
   const [type, setType] = useState<(typeof MEETING_TYPES)[number]>(
     initial?.type ?? "ATA",
   );
+  const [heldAt, setHeldAt] = useState(
+    () => toDatetimeLocal(initial?.heldAt) || toDatetimeLocal(new Date()),
+  );
+  const [descriptionHtml, setDescriptionHtml] = useState(
+    initial?.description ?? "",
+  );
+  const [descriptionKey, setDescriptionKey] = useState(0);
   const [published, setPublished] = useState(initial?.published ?? false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleting, startDelete] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
   const participantsRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +141,16 @@ export function MeetingForm(props: MeetingFormProps) {
     initial?.memberIds ?? [],
   );
   const [guests, setGuests] = useState(initial?.guests ?? []);
+
+  function applyImportDraft(draft: MeetingImportDraft) {
+    setTitle(draft.title);
+    setType(draft.type);
+    setHeldAt(draft.heldAt);
+    setDescriptionHtml(draft.descriptionHtml);
+    setDescriptionKey((k) => k + 1);
+    setSelectedMemberIds(draft.memberIds);
+    setGuests(draft.guests);
+  }
 
   useDismissOnOutside(shareOpen, () => setShareOpen(false), shareRef);
   useDismissOnOutside(
@@ -174,6 +197,7 @@ export function MeetingForm(props: MeetingFormProps) {
     state && !state.ok ? state.fieldErrors?.[key] : undefined;
 
   return (
+    <>
     <form action={formAction} className="flex flex-col">
       {/* Top bar */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
@@ -193,6 +217,17 @@ export function MeetingForm(props: MeetingFormProps) {
           </span>
         </nav>
         <div className="flex items-center gap-2">
+          {props.canEdit && props.mode === "create" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+            >
+              <FileUp className="size-3.5" />
+              Importar
+            </Button>
+          )}
           {props.canEdit && (
             <Button type="submit" size="sm" disabled={pending}>
               <Save className="size-3.5" />
@@ -296,7 +331,8 @@ export function MeetingForm(props: MeetingFormProps) {
             name="heldAt"
             required
             disabled={!props.canEdit}
-            defaultValue={toDatetimeLocal(initial?.heldAt)}
+            value={heldAt}
+            onChange={(e) => setHeldAt(e.target.value)}
             className="w-full min-w-0 border-0 bg-transparent py-1 outline-none disabled:opacity-70"
           />
         </PropRow>
@@ -431,8 +467,9 @@ export function MeetingForm(props: MeetingFormProps) {
 
       {/* Large description body */}
       <RichTextEditor
+        key={descriptionKey}
         name="description"
-        defaultValue={initial?.description ?? ""}
+        defaultValue={descriptionHtml}
         disabled={!props.canEdit}
         variant="document"
         placeholder="Escreva o resumo detalhado da reunião…"
@@ -446,30 +483,52 @@ export function MeetingForm(props: MeetingFormProps) {
             disabled={deleting}
             className="text-destructive hover:bg-destructive/10"
             onClick={() => {
-              if (
-                !confirm(
-                  "Excluir esta reunião? Esta ação não pode ser desfeita.",
-                )
-              ) {
-                return;
-              }
+              setDeleteError(null);
+              setConfirmDelete(true);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            Excluir
+          </Button>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={(next) => {
+              if (deleting) return;
+              setConfirmDelete(next);
+              if (!next) setDeleteError(null);
+            }}
+            title="Excluir esta reunião?"
+            description="Esta ação não pode ser desfeita."
+            confirmLabel="Sim, excluir"
+            pending={deleting}
+            pendingLabel="Excluindo…"
+            error={deleteError}
+            onConfirm={() => {
               startDelete(async () => {
                 const res = await deleteMeetingAction(props.meetingId!);
                 if (!res.ok) {
                   setDeleteError(res.error);
                   return;
                 }
+                setConfirmDelete(false);
                 router.push(`/projects/${res.projectId}/meetings`);
                 router.refresh();
               });
             }}
-          >
-            <Trash2 className="size-3.5" />
-            {deleting ? "Excluindo…" : "Excluir"}
-          </Button>
+          />
         </div>
       )}
     </form>
+
+    {props.mode === "create" && props.canEdit && (
+      <ImportMeetingDialog
+        projectId={props.projectId}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={applyImportDraft}
+      />
+    )}
+    </>
   );
 }
 

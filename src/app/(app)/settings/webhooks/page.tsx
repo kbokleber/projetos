@@ -6,6 +6,10 @@ import { CreateWebhookForm } from "@/features/webhooks/create-form";
 import { WebhookList } from "@/features/webhooks/webhook-list";
 import { deleteWebhookAction, toggleWebhookAction } from "@/features/webhooks/actions";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import {
+  getWorkspaceMemberRole,
+  isWorkspaceAdmin,
+} from "@/lib/workspace-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +28,9 @@ export default async function SettingsWebhooksPage() {
       </div>
     );
   }
+
+  const role = await getWorkspaceMemberRole(session.user.id, active.id);
+  if (!isWorkspaceAdmin(role)) redirect("/dashboard");
 
   const webhooks = await prisma.webhook.findMany({
     where: { workspaceId: active.id },

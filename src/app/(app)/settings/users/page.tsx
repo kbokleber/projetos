@@ -18,16 +18,7 @@ export default async function UsersSettingsPage() {
   if (!me) redirect("/login");
 
   if (me.role !== "ADMIN") {
-    return (
-      <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-sm">
-        <h1 className="mb-1 text-base font-semibold text-destructive">
-          Acesso negado
-        </h1>
-        <p className="text-muted-foreground">
-          Esta página é restrita a administradores do sistema.
-        </p>
-      </section>
-    );
+    redirect("/dashboard");
   }
 
   return (

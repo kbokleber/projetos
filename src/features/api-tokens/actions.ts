@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateToken } from "@/lib/api/auth";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { AppError } from "@/lib/errors";
+import { assertWorkspaceAdmin } from "@/lib/workspace-admin";
 import { z } from "zod";
 
 export type CreateTokenResult =
@@ -42,6 +44,13 @@ export async function createApiTokenAction(
   const { active } = await resolveActiveWorkspace(session.user.id);
   if (!active) return { ok: false, error: "Usuário sem workspace." };
 
+  try {
+    await assertWorkspaceAdmin(session.user.id, active.id);
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    return { ok: false, error: "Sem permissão." };
+  }
+
   const { token, prefix, tokenHash } = generateToken();
 
   const expiresAt = parsed.data.expiresInDays
@@ -73,6 +82,12 @@ export async function revokeApiTokenAction(formData: FormData) {
 
   const { active } = await resolveActiveWorkspace(session.user.id);
   if (!active) return;
+
+  try {
+    await assertWorkspaceAdmin(session.user.id, active.id);
+  } catch {
+    return;
+  }
 
   await prisma.apiToken.updateMany({
     where: {

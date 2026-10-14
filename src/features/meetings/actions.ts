@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { meetingFormSchema } from "@/schemas/meetings";
 import { meetingService } from "@/services/meetings";
+import {
+  meetingImportService,
+  type MeetingImportDraft,
+} from "@/services/meeting-import";
 import { AppError } from "@/lib/errors";
 
 export type MeetingFormState =
@@ -156,5 +160,32 @@ export async function deleteMeetingAction(
     }
     console.error("[deleteMeeting]", err);
     return { ok: false, error: "Não foi possível excluir a reunião." };
+  }
+}
+
+export async function importMeetingDraftAction(
+  projectId: string,
+  text: string,
+): Promise<
+  | { ok: true; draft: MeetingImportDraft }
+  | { ok: false; error: string }
+> {
+  const user = await requireUser();
+  try {
+    const draft = await meetingImportService.extractDraft(
+      user.id,
+      projectId,
+      text,
+    );
+    return { ok: true, draft };
+  } catch (err) {
+    if (err instanceof AppError) {
+      return { ok: false, error: err.message };
+    }
+    console.error("[importMeetingDraft]", err);
+    return {
+      ok: false,
+      error: "Não foi possível extrair a ATA a partir do texto.",
+    };
   }
 }

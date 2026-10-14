@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteWorkspaceAction } from "./actions";
 
 export function DeleteWorkspaceButton({
@@ -19,7 +20,7 @@ export function DeleteWorkspaceButton({
   disabledReason?: string;
 }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -38,76 +39,59 @@ export function DeleteWorkspaceButton({
     );
   }
 
-  if (!confirming) {
-    return (
+  return (
+    <>
       <Button
         type="button"
         variant="ghost"
         size="sm"
         onClick={() => {
           setError(null);
-          setConfirming(true);
+          setOpen(true);
         }}
         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
       >
         Excluir
       </Button>
-    );
-  }
-
-  function runDelete() {
-    setError(null);
-    const fd = new FormData();
-    fd.set("workspaceId", workspaceId);
-    startTransition(async () => {
-      try {
-        const result = await deleteWorkspaceAction(fd);
-        if (!result.ok) {
-          setError(result.error);
-          return;
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(next) => {
+          if (pending) return;
+          setOpen(next);
+          if (!next) setError(null);
+        }}
+        title="Excluir workspace?"
+        description={
+          <>
+            Excluir <strong>{workspaceName}</strong>
+            {projectCount > 0
+              ? ` e ${projectCount} projeto(s)? Esta ação não pode ser desfeita.`
+              : "? Esta ação não pode ser desfeita."}
+          </>
         }
-        setConfirming(false);
-        router.refresh();
-      } catch {
-        setError("Falha ao excluir. Tente novamente.");
-      }
-    });
-  }
-
-  return (
-    <div className="flex max-w-[16rem] flex-col items-end gap-1.5">
-      <p className="text-right text-[11px] text-muted-foreground">
-        Excluir <strong className="text-foreground">{workspaceName}</strong>
-        {projectCount > 0
-          ? ` e ${projectCount} projeto(s)?`
-          : " (irreversível)?"}
-      </p>
-      {error && (
-        <p className="text-right text-[11px] text-destructive">{error}</p>
-      )}
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={pending}
-          onClick={() => {
-            setConfirming(false);
-            setError(null);
-          }}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={pending}
-          onClick={runDelete}
-        >
-          {pending ? "Excluindo…" : "Confirmar"}
-        </Button>
-      </div>
-    </div>
+        confirmLabel="Sim, excluir"
+        pending={pending}
+        pendingLabel="Excluindo…"
+        error={error}
+        onConfirm={() => {
+          setError(null);
+          const fd = new FormData();
+          fd.set("workspaceId", workspaceId);
+          startTransition(async () => {
+            try {
+              const result = await deleteWorkspaceAction(fd);
+              if (!result.ok) {
+                setError(result.error);
+                return;
+              }
+              setOpen(false);
+              router.refresh();
+            } catch {
+              setError("Falha ao excluir. Tente novamente.");
+            }
+          });
+        }}
+      />
+    </>
   );
 }

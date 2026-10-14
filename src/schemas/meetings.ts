@@ -25,3 +25,22 @@ export const meetingFormSchema = z.object({
 });
 
 export type MeetingFormValues = z.infer<typeof meetingFormSchema>;
+
+/** Resultado estruturado da IA ao importar texto de reunião. */
+export const importMeetingAiResultSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  type: z.enum(MEETING_TYPES).default("ATA"),
+  heldAt: z.string().min(1),
+  descriptionHtml: z.string().max(500_000).default(""),
+  participantNames: z.array(z.string().trim().min(1).max(120)).default([]),
+});
+
+export type ImportMeetingAiResult = z.infer<typeof importMeetingAiResultSchema>;
+
+export const importMeetingTextSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(40, "Cole um texto maior (transcrição ou notas da reunião).")
+    .max(150_000, "Texto muito longo (máx. 150.000 caracteres)."),
+});
