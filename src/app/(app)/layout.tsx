@@ -53,15 +53,16 @@ export default async function DashboardLayout({
   };
 
   return (
-    <div className="flex min-h-screen w-full">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+    <div className="flex min-h-svh w-full">
+      {/* Sidebar com altura da viewport: rodapé (workspace/sair) sempre visível */}
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         <Link
           href="/dashboard"
-          className="flex h-14 items-center border-b border-sidebar-border px-4 text-base font-semibold tracking-tight"
+          className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4 text-base font-semibold tracking-tight"
         >
           Projetos
         </Link>
-        <nav className="flex flex-1 flex-col gap-1 p-3 text-sm">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3 text-sm">
           {navItem("/dashboard", "Dashboard")}
           {navItem("/projects", "Projetos")}
           {navItem("/my-tasks", "Minhas tarefas")}
@@ -73,24 +74,22 @@ export default async function DashboardLayout({
           {navItem("/settings/webhooks", "Webhooks")}
           <div className="my-2 h-px bg-border" />
           <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Conta
-          </p>
-          {navItem("/settings/account", "Minha conta")}
-          <div className="my-2 h-px bg-border" />
-          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Administração
           </p>
           {navItem("/settings/users", "Usuários")}
           {navItem("/settings/workspaces", "Workspaces")}
         </nav>
-        <div className="border-t border-sidebar-border p-3 text-xs">
+        <div className="shrink-0 border-t border-sidebar-border p-3 text-xs">
           <p className="font-medium text-foreground">Workspace ativo</p>
           <WorkspaceSwitcher
             workspaces={workspaces}
             activeId={activeWorkspace?.id ?? null}
           />
         </div>
-        <form action={logoutAction} className="border-t border-sidebar-border p-3">
+        <form
+          action={logoutAction}
+          className="shrink-0 border-t border-sidebar-border p-3"
+        >
           <div className="mb-2 truncate text-xs">
             <p className="font-medium text-foreground">{session.user.name}</p>
             <p className="truncate text-muted-foreground">{session.user.email}</p>
@@ -107,7 +106,7 @@ export default async function DashboardLayout({
         </form>
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
           <div className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
