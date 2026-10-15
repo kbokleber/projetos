@@ -29,9 +29,15 @@ export const projectFormSchema = z.object({
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;
 
-export const addMemberSchema = z.object({
-  email: z.string().email("Email inválido"),
-  role: z.enum(["ADMIN", "MEMBER", "VIEWER"]).default("MEMBER"),
-});
+export const addMemberSchema = z
+  .object({
+    email: z.string().email("Email inválido").optional(),
+    userId: z.string().min(1).optional(),
+    role: z.enum(["ADMIN", "MEMBER", "VIEWER"]).default("MEMBER"),
+  })
+  .refine((d) => !!d.email || !!d.userId, {
+    message: "Selecione um usuário cadastrado.",
+    path: ["userId"],
+  });
 
 export type AddMemberValues = z.infer<typeof addMemberSchema>;

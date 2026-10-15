@@ -135,6 +135,27 @@ export default async function ProjectDetailPage({
         })
       : [];
 
+  const workspaceCandidates =
+    activeTab === "members"
+      ? await prisma.workspaceMember.findMany({
+          where: {
+            workspaceId: project.workspaceId,
+            user: { active: true },
+          },
+          select: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+
   const canEdit = access.canEdit;
   const canManageMembers = access.canManageMembers;
   const board = project.boards[0];
@@ -260,6 +281,12 @@ export default async function ProjectDetailPage({
             email: m.user.email,
             avatarUrl: m.user.avatarUrl,
             role: m.role,
+          }))}
+          candidates={workspaceCandidates.map((c) => ({
+            userId: c.user.id,
+            name: c.user.name,
+            email: c.user.email,
+            avatarUrl: c.user.avatarUrl,
           }))}
         />
       )}

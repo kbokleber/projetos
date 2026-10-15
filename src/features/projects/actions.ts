@@ -213,7 +213,8 @@ export async function addProjectMemberAction(
   const user = await getSession();
 
   const parsed = addMemberSchema.safeParse({
-    email: formData.get("email"),
+    email: formData.get("email") || undefined,
+    userId: formData.get("userId") || undefined,
     role: formData.get("role") || "MEMBER",
   });
   if (!parsed.success) {
@@ -225,7 +226,7 @@ export async function addProjectMemberAction(
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { members: { where: { user: { email: parsed.data.email } } } },
+    select: { id: true, workspaceId: true },
   });
   if (!project) return { ok: false, error: "Projeto não encontrado." };
 
@@ -236,15 +237,19 @@ export async function addProjectMemberAction(
     return { ok: false, error: "Sem permissão para gerenciar membros." };
   }
 
-  const invited = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-  });
-  if (!invited) return { ok: false, error: "Nenhum usuário com esse email." };
+  const invited = parsed.data.userId
+    ? await prisma.user.findUnique({ where: { id: parsed.data.userId } })
+    : await prisma.user.findUnique({ where: { email: parsed.data.email! } });
+  if (!invited || !invited.active) {
+    return { ok: false, error: "Usuário não encontrado ou inativo." };
+  }
 
-  // Convidado precisa ser membro do workspace
   const workspaceMember = await prisma.workspaceMember.findUnique({
     where: {
-      workspaceId_userId: { workspaceId: project.workspaceId, userId: invited.id },
+      workspaceId_userId: {
+        workspaceId: project.workspaceId,
+        userId: invited.id,
+      },
     },
   });
   if (!workspaceMember) {
