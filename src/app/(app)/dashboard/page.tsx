@@ -1,10 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { dashboardService } from "@/services/dashboard";
-import { ActivityFeed } from "@/features/dashboard/activity-feed";
 import { SummaryCards } from "@/features/dashboard/summary-cards";
-import { ActivityOriginChart } from "@/features/dashboard/activity-origin";
-import { RecentApiTasks } from "@/features/dashboard/recent-api-tasks";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { Button } from "@/components/ui/button";
@@ -29,14 +26,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const userId = session.user.id;
-  const [summary, recentActivity, activityByOrigin, recentApiTasks] =
-    await Promise.all([
-      dashboardService.summary(active.id, userId),
-      dashboardService.recentActivity(active.id, userId, 15),
-      dashboardService.activityByOrigin(active.id, userId),
-      dashboardService.recentApiTasks(active.id, userId, 8),
-    ]);
+  const summary = await dashboardService.summary(active.id, session.user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,9 +34,7 @@ export default async function DashboardPage() {
         title="Acompanhamento"
         description={
           <>
-            Visão executiva de <strong>{active.name}</strong>. Aqui você vê o
-            que está acontecendo, incluindo tudo o que a <strong>IA</strong>{" "}
-            fez via API.
+            Visão executiva de <strong>{active.name}</strong>.
           </>
         }
         actions={
@@ -64,30 +52,6 @@ export default async function DashboardPage() {
         apiTasksCreatedToday={summary.apiTasksCreatedToday}
         webhookDeliveriesLast7d={summary.webhookDeliveriesLast7d}
       />
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <ActivityFeed items={recentActivity} />
-        </div>
-        <div className="flex flex-col gap-4">
-          <ActivityOriginChart byOrigin={activityByOrigin} />
-          <RecentApiTasks tasks={recentApiTasks} />
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-dashed border-border bg-card/50 p-4 text-sm text-muted-foreground">
-        <p>
-          Para acompanhar as integrações, abra{" "}
-          <Link href="/settings/api" className="text-primary underline">
-            Tokens de API
-          </Link>{" "}
-          ou{" "}
-          <Link href="/settings/webhooks" className="text-primary underline">
-            Webhooks
-          </Link>
-          .
-        </p>
-      </section>
     </div>
   );
 }

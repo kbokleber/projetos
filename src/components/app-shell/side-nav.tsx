@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -25,13 +28,18 @@ type NavSection = {
   items: NavItem[];
 };
 
+function isNavActive(pathname: string, href: string) {
+  if (pathname === href) return true;
+  if (!pathname.startsWith(href + "/")) return false;
+  // Evita que rotas curtas “roubem” o ativo de irmãs mais específicas
+  return true;
+}
+
 export function SideNav({
-  pathname,
   canManageWorkspace,
   canSeeUsers,
   overview,
 }: {
-  pathname: string;
   canManageWorkspace: boolean;
   canSeeUsers: boolean;
   overview: {
@@ -40,6 +48,8 @@ export function SideNav({
     tasksOverdue: number;
   } | null;
 }) {
+  const pathname = usePathname() ?? "";
+
   const sections: NavSection[] = [
     {
       title: "Trabalho",
@@ -88,6 +98,12 @@ export function SideNav({
     ],
   });
 
+  const allHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
+  const activeHref =
+    allHrefs
+      .filter((href) => isNavActive(pathname, href))
+      .sort((a, b) => b.length - a.length)[0] ?? null;
+
   return (
     <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-4 text-sm">
@@ -98,8 +114,7 @@ export function SideNav({
             </p>
             <ul className="flex flex-col gap-0.5">
               {section.items.map(({ href, label, Icon }) => {
-                const active =
-                  pathname === href || pathname.startsWith(href + "/");
+                const active = activeHref === href;
                 return (
                   <li key={href}>
                     <Link

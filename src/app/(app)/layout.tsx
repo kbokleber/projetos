@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { AppError } from "@/lib/errors";
 import {
@@ -34,8 +33,6 @@ export default async function DashboardLayout({
     throw err;
   }
 
-  const hdrs = await headers();
-  const pathname = hdrs.get("x-pathname") ?? "";
   const workspaceRole = activeWorkspace
     ? await getWorkspaceMemberRole(session.user.id, activeWorkspace.id)
     : null;
@@ -66,7 +63,6 @@ export default async function DashboardLayout({
 
       <div className="flex min-h-0 flex-1">
         <SideNav
-          pathname={pathname}
           canManageWorkspace={canManageWorkspace}
           canSeeUsers={canSeeUsers}
           overview={overview}
