@@ -5,13 +5,22 @@ import { prisma } from "@/lib/prisma";
 import { KanbanBoard } from "@/features/tasks/kanban-board";
 import { ArchivedTasksList } from "@/features/tasks/archived-tasks-list";
 import { MembersManager } from "@/features/projects/members-manager";
+import { TASK_VIEW_NAV } from "@/features/tasks/task-views-toolbar";
+import { TasksGridView } from "@/features/tasks/tasks-grid-view";
+import { TasksCalendarView } from "@/features/tasks/tasks-calendar-view";
+import { TasksTimelineView } from "@/features/tasks/tasks-timeline-view";
+import { TasksChartsView } from "@/features/tasks/tasks-charts-view";
+import {
+  flattenTasksFromColumns,
+  parseTaskBoardView,
+  type TaskBoardView,
+} from "@/features/tasks/task-view-types";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
   Pencil,
   Settings,
   Users2,
-  LayoutDashboard,
   ListChecks,
   FileText,
   Archive,
@@ -34,16 +43,17 @@ export default async function ProjectDetailPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; view?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const { projectId } = await params;
-  const { tab } = await searchParams;
+  const { tab, view } = await searchParams;
   const activeTab: Tab =
     tab === "members" || tab === "overview" || tab === "archived"
       ? tab
       : "board";
+  const activeView = parseTaskBoardView(view);
 
   const access = await getProjectAccess(session.user.id, projectId);
   if (!access?.canView) notFound();
@@ -70,6 +80,7 @@ export default async function ProjectDetailPage({
                   title: true,
                   priority: true,
                   completedAt: true,
+                  startDate: true,
                   dueDate: true,
                   assignees: {
                     include: { user: { select: { id: true, name: true } } },
@@ -129,14 +140,17 @@ export default async function ProjectDetailPage({
   const board = project.boards[0];
   const isArchived = !!project.archivedAt;
 
+  const navItemClass = (active: boolean) =>
+    cn(
+      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+      active && "bg-accent font-medium text-accent-foreground",
+    );
+
   const tabLink = (key: Tab, label: string, Icon: React.ElementType) => (
     <Link
       key={key}
-      href={`/projects/${projectId}${key === "board" ? "" : `?tab=${key}`}`}
-      className={cn(
-        "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
-        activeTab === key && "bg-accent font-medium text-accent-foreground",
-      )}
+      href={`/projects/${projectId}?tab=${key}`}
+      className={navItemClass(activeTab === key)}
     >
       <Icon className="size-3.5" />
       {label}
@@ -197,17 +211,28 @@ export default async function ProjectDetailPage({
         )}
 
         <nav className="mt-2 flex flex-wrap items-center gap-1 border-b border-border">
-          {tabLink("board", "Board", LayoutDashboard)}
+          {TASK_VIEW_NAV.map(({ key, label, Icon }) => (
+            <Link
+              key={key}
+              href={
+                key === "board"
+                  ? `/projects/${projectId}`
+                  : `/projects/${projectId}?view=${key}`
+              }
+              className={navItemClass(
+                activeTab === "board" && activeView === key,
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </Link>
+          ))}
           {tabLink("overview", "Overview", ListChecks)}
           {tabLink("members", `Membros (${project.members.length})`, Users2)}
-          {tabLink(
-            "archived",
-            `Arquivadas (${archivedCount})`,
-            Archive,
-          )}
+          {tabLink("archived", `Arquivadas (${archivedCount})`, Archive)}
           <Link
             href={`/projects/${projectId}/meetings`}
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            className={navItemClass(false)}
           >
             <FileText className="size-3.5" />
             ATAs ({project._count.meetings})
@@ -220,6 +245,7 @@ export default async function ProjectDetailPage({
           projectId={project.id}
           board={board}
           canEdit={!!canEdit}
+          activeView={activeView}
         />
       )}
 
@@ -275,6 +301,7 @@ type BoardShape = {
       title: string;
       priority: string;
       completedAt: Date | null;
+      startDate: Date | null;
       dueDate: Date | null;
       assignees: Array<{ user: { id: string; name: string | null } }>;
     }>;
@@ -285,10 +312,12 @@ function Board({
   projectId,
   board,
   canEdit,
+  activeView,
 }: {
   projectId: string;
   board: BoardShape;
   canEdit: boolean;
+  activeView: TaskBoardView;
 }) {
   if (!board) {
     return (
@@ -298,12 +327,51 @@ function Board({
     );
   }
 
+  const columns = board.columns.map((col) => ({
+    id: col.id,
+    name: col.name,
+    color: col.color,
+    tasks: col.tasks.map((t) => ({
+      id: t.id,
+      columnId: t.columnId,
+      title: t.title,
+      priority: t.priority,
+      completedAt: t.completedAt,
+      startDate: t.startDate,
+      dueDate: t.dueDate,
+      assignees: t.assignees,
+    })),
+  }));
+  const flatTasks = flattenTasksFromColumns(columns);
+
+  if (activeView === "grid") {
+    return (
+      <TasksGridView
+        projectId={projectId}
+        tasks={flatTasks}
+        canEdit={canEdit}
+      />
+    );
+  }
+
+  if (activeView === "calendar") {
+    return <TasksCalendarView projectId={projectId} tasks={flatTasks} />;
+  }
+
+  if (activeView === "timeline") {
+    return <TasksTimelineView projectId={projectId} tasks={flatTasks} />;
+  }
+
+  if (activeView === "charts") {
+    return <TasksChartsView tasks={flatTasks} />;
+  }
+
   return (
     <KanbanBoard
       projectId={projectId}
       boardId={board.id}
       canEdit={canEdit}
-      columns={board.columns.map((col) => ({
+      columns={columns.map((col) => ({
         id: col.id,
         name: col.name,
         color: col.color,
