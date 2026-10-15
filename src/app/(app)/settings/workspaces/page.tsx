@@ -12,6 +12,7 @@ import { WorkspaceMembersPanel } from "@/features/workspaces/members-panel";
 import { DeleteWorkspaceButton } from "@/features/workspaces/delete-workspace-button";
 import { switchWorkspaceFormAction } from "@/features/workspaces/actions";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/app-shell/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -36,19 +37,10 @@ export default async function SettingsWorkspacesPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <div>
-        <nav className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <span>Configurações</span>
-          <span>/</span>
-          <span className="text-foreground">Workspaces</span>
-        </nav>
-        <h1 className="text-2xl font-semibold tracking-tight">Workspaces</h1>
-        <p className="text-sm text-muted-foreground">
-          Você pode participar de um ou mais workspaces. Troque o ativo no menu
-          lateral; projetos, dashboard e integrações seguem o workspace
-          selecionado.
-        </p>
-      </div>
+      <PageHeader
+        title="Workspaces"
+        description="Você pode participar de um ou mais workspaces. Troque o ativo pelo botão Trocar na barra superior; projetos, dashboard e integrações seguem o workspace selecionado."
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium">Seus workspaces</h2>

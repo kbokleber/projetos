@@ -10,6 +10,7 @@ import {
   getWorkspaceMemberRole,
   isWorkspaceAdmin,
 } from "@/lib/workspace-admin";
+import { PageHeader } from "@/components/app-shell/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -68,21 +69,16 @@ export default async function SettingsWebhooksPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <nav className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span className="text-foreground">Configurações · Webhooks</span>
-        </nav>
-        <h1 className="text-2xl font-semibold tracking-tight">Webhooks</h1>
-        <p className="text-sm text-muted-foreground">
-          Webhooks de <strong>{active.name}</strong>. Cada entrega é assinada
-          com HMAC SHA-256 no header{" "}
-          <code className="font-mono">X-Webhook-Signature</code>.
-        </p>
-      </div>
+      <PageHeader
+        title="Webhooks"
+        description={
+          <>
+            Webhooks de <strong>{active.name}</strong>. Cada entrega é assinada
+            com HMAC SHA-256 no header{" "}
+            <code className="font-mono">X-Webhook-Signature</code>.
+          </>
+        }
+      />
 
       <CreateWebhookForm />
 

@@ -6,8 +6,11 @@ export default function SignupPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+        <span className="mx-auto mb-2 flex size-10 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+          S
+        </span>
         <p className="mb-1 text-xs font-medium tracking-wide text-primary uppercase">
-          {APP_NAME}
+          ServiceIT · {APP_NAME}
         </p>
         <h1 className="mb-2 text-2xl font-semibold tracking-tight">
           Cadastro desabilitado

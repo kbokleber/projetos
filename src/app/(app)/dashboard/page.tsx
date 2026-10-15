@@ -6,6 +6,8 @@ import { SummaryCards } from "@/features/dashboard/summary-cards";
 import { ActivityOriginChart } from "@/features/dashboard/activity-origin";
 import { RecentApiTasks } from "@/features/dashboard/recent-api-tasks";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { PageHeader } from "@/components/app-shell/page-header";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -38,16 +40,21 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Acompanhamento
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Visão executiva de <strong>{active.name}</strong>. Aqui você vê o que
-          está acontecendo, incluindo tudo o que a <strong>IA</strong> fez via
-          API.
-        </p>
-      </div>
+      <PageHeader
+        title="Acompanhamento"
+        description={
+          <>
+            Visão executiva de <strong>{active.name}</strong>. Aqui você vê o
+            que está acontecendo, incluindo tudo o que a <strong>IA</strong>{" "}
+            fez via API.
+          </>
+        }
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/projects">Ver projetos</Link>
+          </Button>
+        }
+      />
 
       <SummaryCards
         projectsActive={summary.projectsActive}

@@ -8,6 +8,7 @@ import {
 } from "@/lib/workspace-admin";
 import { workspaceAiService } from "@/services/workspace-ai";
 import { AiSettingsForm } from "@/features/workspace-ai/ai-settings-form";
+import { PageHeader } from "@/components/app-shell/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -36,26 +37,21 @@ export default async function SettingsAiPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <nav className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span className="text-foreground">Configurações · IA</span>
-        </nav>
-        <h1 className="text-2xl font-semibold tracking-tight">IA / OpenAI</h1>
-        <p className="text-sm text-muted-foreground">
-          Chave e modelo do workspace <strong>{active.name}</strong> para
-          importar ATAs a partir de texto. Compatível com OpenAI e APIs no
-          mesmo formato (MiniMax, Azure OpenAI, Ollama, gateways, etc.).
-        </p>
-        <p className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          A chave fica criptografada no banco deste workspace — não use mais{" "}
-          <code className="font-mono">OPENAI_API_KEY</code> no Coolify/.env
-          para este recurso.
-        </p>
-      </div>
+      <PageHeader
+        title="IA / OpenAI"
+        description={
+          <>
+            Chave e modelo do workspace <strong>{active.name}</strong> para
+            importar ATAs a partir de texto. Compatível com OpenAI e APIs no
+            mesmo formato (MiniMax, Azure OpenAI, Ollama, gateways, etc.).
+          </>
+        }
+      />
+      <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        A chave fica criptografada no banco deste workspace — não use mais{" "}
+        <code className="font-mono">OPENAI_API_KEY</code> no Coolify/.env para
+        este recurso.
+      </p>
 
       <AiSettingsForm
         canEdit={canEdit}

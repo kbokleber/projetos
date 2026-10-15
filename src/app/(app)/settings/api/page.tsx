@@ -9,6 +9,7 @@ import {
   isWorkspaceAdmin,
 } from "@/lib/workspace-admin";
 import Link from "next/link";
+import { PageHeader } from "@/components/app-shell/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -51,31 +52,26 @@ export default async function SettingsApiPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <nav className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span className="text-foreground">Configurações · API</span>
-        </nav>
-        <h1 className="text-2xl font-semibold tracking-tight">API · Tokens</h1>
-        <p className="text-sm text-muted-foreground">
-          Tokens de <strong>{active.name}</strong> (slug:{" "}
-          <code className="font-mono text-xs">{active.slug}</code>). O token
-          completo é mostrado uma única vez.
-        </p>
-        <p className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Escopos separados: tarefas usam{" "}
-          <code className="font-mono">tasks:write</code>; ATAs usam{" "}
-          <code className="font-mono">meetings:read</code> /{" "}
-          <code className="font-mono">meetings:write</code> (não bastam os de
-          Projetos). Ambos já vêm em &quot;Recomendado IA&quot;. Tokens antigos
-          sem esses escopos devem ser revogados e gerados de novo. Liste
-          workspaces em{" "}
-          <code className="font-mono">GET /api/v1/workspaces</code>.
-        </p>
-      </div>
+      <PageHeader
+        title="API · Tokens"
+        description={
+          <>
+            Tokens de <strong>{active.name}</strong> (slug:{" "}
+            <code className="font-mono text-xs">{active.slug}</code>). O token
+            completo é mostrado uma única vez.
+          </>
+        }
+      />
+      <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        Escopos separados: tarefas usam{" "}
+        <code className="font-mono">tasks:write</code>; ATAs usam{" "}
+        <code className="font-mono">meetings:read</code> /{" "}
+        <code className="font-mono">meetings:write</code> (não bastam os de
+        Projetos). Ambos já vêm em &quot;Recomendado IA&quot;. Tokens antigos
+        sem esses escopos devem ser revogados e gerados de novo. Liste
+        workspaces em{" "}
+        <code className="font-mono">GET /api/v1/workspaces</code>.
+      </p>
 
       <CreateTokenForm />
 

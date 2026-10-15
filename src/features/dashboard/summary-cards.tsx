@@ -67,7 +67,7 @@ function Card({
     <div
       className={cn(
         "flex h-full flex-col gap-1 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors",
-        href && "hover:bg-accent/30",
+        href && "hover:border-primary/30 hover:bg-primary/[0.03]",
       )}
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -76,9 +76,10 @@ function Card({
       </div>
       <div
         className={cn(
-          "text-2xl font-semibold tracking-tight",
+          "text-2xl font-semibold tracking-tight text-primary",
           tone === "positive" && "text-emerald-600",
           tone === "danger" && "text-destructive",
+          tone === "neutral" && "text-foreground",
         )}
       >
         {value}

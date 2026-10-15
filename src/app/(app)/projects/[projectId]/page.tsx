@@ -163,8 +163,9 @@ export default async function ProjectDetailPage({
 
   const navItemClass = (active: boolean) =>
     cn(
-      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
-      active && "bg-accent font-medium text-accent-foreground",
+      "relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/70",
+      active &&
+        "bg-nav-active font-medium text-foreground before:absolute before:inset-y-1 before:left-0 before:w-1 before:rounded-full before:bg-nav-rail",
     );
 
   const tabLink = (key: Tab, label: string, Icon: React.ElementType) => (

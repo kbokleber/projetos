@@ -6,7 +6,18 @@ import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { isCompletionColumnName } from "@/lib/task-completion";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { PageHeader } from "@/components/app-shell/page-header";
+import { StatusPills } from "@/components/ui/status-pills";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableHead,
+  DataTableRow,
+  DataTableShell,
+  DataTableTd,
+  DataTableTh,
+} from "@/components/ui/data-table-shell";
+import { Circle, CircleCheck, LayoutList } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -101,7 +112,14 @@ export default async function MyTasksPage({
         { description: { contains: q, mode: "insensitive" } },
       ],
     };
-    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), textFilter];
+    where.AND = [
+      ...(Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+          ? [where.AND]
+          : []),
+      textFilter,
+    ];
   }
 
   const tasks = await prisma.task.findMany({
@@ -114,75 +132,78 @@ export default async function MyTasksPage({
     },
   });
 
-  const groups: Record<string, typeof tasks> = {
-    Atrasadas: [],
-    Hoje: [],
-    "Próximos dias": [],
-    "Sem prazo / depois": [],
-    Concluídas: [],
+  const qs = (next: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (q) sp.set("q", q);
+    if (projectId) sp.set("projectId", projectId);
+    if (next.status && next.status !== "open") sp.set("status", next.status);
+    const s = sp.toString();
+    return s ? `/my-tasks?${s}` : "/my-tasks";
   };
 
+  const hasSearchFilters = Boolean(q || projectId);
   const now = new Date();
   const startOfToday = new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
   );
-  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
-  const nextDaysEnd = new Date(
-    startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000,
-  );
-
-  for (const t of tasks) {
-    if (t.completedAt) {
-      groups["Concluídas"].push(t);
-      continue;
-    }
-    if (!t.dueDate) {
-      groups["Sem prazo / depois"].push(t);
-    } else if (t.dueDate < startOfToday) {
-      groups["Atrasadas"].push(t);
-    } else if (t.dueDate < endOfToday) {
-      groups["Hoje"].push(t);
-    } else if (t.dueDate < nextDaysEnd) {
-      groups["Próximos dias"].push(t);
-    } else {
-      groups["Sem prazo / depois"].push(t);
-    }
-  }
-
-  const hasSearchFilters = Boolean(q || projectId);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Search className="size-5" />
-          Minhas tarefas
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Tarefas em que você é responsável ou criador
-          {active ? (
-            <>
-              {" "}
-              em <strong>{active.name}</strong>
-            </>
-          ) : null}
-          . {tasks.length} resultado(s)
-          {q ? (
-            <>
-              {" "}
-              para <strong>&quot;{q}&quot;</strong>
-            </>
-          ) : null}
-          .
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Minhas tarefas"
+        description={
+          <>
+            Tarefas em que você é responsável ou criador
+            {active ? (
+              <>
+                {" "}
+                em <strong>{active.name}</strong>
+              </>
+            ) : null}
+            . {tasks.length} resultado(s)
+            {q ? (
+              <>
+                {" "}
+                para <strong>&quot;{q}&quot;</strong>
+              </>
+            ) : null}
+            .
+          </>
+        }
+      />
+
+      <StatusPills
+        items={[
+          {
+            href: qs({ status: "open" }),
+            label: "Abertas",
+            active: status === "open",
+            Icon: Circle,
+          },
+          {
+            href: qs({ status: "completed" }),
+            label: "Concluídas",
+            active: status === "completed",
+            Icon: CircleCheck,
+          },
+          {
+            href: qs({ status: "all" }),
+            label: "Todas",
+            active: status === "all",
+            Icon: LayoutList,
+          },
+        ]}
+      />
 
       <form
         method="get"
-        className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end"
       >
+        {status !== "open" && (
+          <input type="hidden" name="status" value={status} />
+        )}
         <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
           <label htmlFor="q" className="text-xs font-medium text-muted-foreground">
             Buscar
@@ -216,30 +237,14 @@ export default async function MyTasksPage({
             ))}
           </select>
         </div>
-        <div className="flex w-full flex-col gap-1.5 sm:w-40">
-          <label
-            htmlFor="status"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status}
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <option value="open">Abertas</option>
-            <option value="completed">Concluídas</option>
-            <option value="all">Abertas + concluídas</option>
-          </select>
-        </div>
         <Button type="submit" className="sm:self-end">
           Buscar
         </Button>
         {hasSearchFilters && (
           <Button type="button" variant="outline" asChild className="sm:self-end">
-            <Link href="/my-tasks">Limpar</Link>
+            <Link href={status === "open" ? "/my-tasks" : `/my-tasks?status=${status}`}>
+              Limpar
+            </Link>
           </Button>
         )}
       </form>
@@ -254,42 +259,76 @@ export default async function MyTasksPage({
           <p className="text-sm text-muted-foreground">
             {hasSearchFilters
               ? "Tente outro termo ou projeto."
-              : "Crie uma tarefa no board (você será o responsável) ou atribua a si mesmo na edição da tarefa. Confira se o workspace ativo é o correto."}
+              : "Crie uma tarefa no board ou atribua a si mesmo na edição da tarefa."}
           </p>
         </div>
       ) : (
-        Object.entries(groups).map(([title, items]) =>
-          items.length === 0 ? null : (
-            <section key={title}>
-              <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-                {title} <span className="text-xs">({items.length})</span>
-              </h2>
-              <div className="flex flex-col gap-2">
-                {items.map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/projects/${t.project.id}/tasks/${t.id}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/40"
-                  >
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-medium">
+        <DataTableShell>
+          <DataTable>
+            <DataTableHead>
+              <tr>
+                <DataTableTh>Tarefa</DataTableTh>
+                <DataTableTh>Projeto</DataTableTh>
+                <DataTableTh>Bucket</DataTableTh>
+                <DataTableTh>Prioridade</DataTableTh>
+                <DataTableTh>Vencimento</DataTableTh>
+                <DataTableTh className="text-right">Abrir</DataTableTh>
+              </tr>
+            </DataTableHead>
+            <DataTableBody>
+              {tasks.map((t) => {
+                const overdue =
+                  !t.completedAt &&
+                  t.dueDate &&
+                  t.dueDate < startOfToday;
+                return (
+                  <DataTableRow key={t.id} selected={!!overdue}>
+                    <DataTableTd>
+                      <Link
+                        href={`/projects/${t.project.id}/tasks/${t.id}`}
+                        className={
+                          "font-medium hover:text-primary " +
+                          (t.completedAt
+                            ? "text-muted-foreground line-through"
+                            : "")
+                        }
+                      >
                         {t.title}
+                      </Link>
+                    </DataTableTd>
+                    <DataTableTd className="text-muted-foreground">
+                      {t.project.name}
+                    </DataTableTd>
+                    <DataTableTd className="text-muted-foreground">
+                      {t.column.name}
+                    </DataTableTd>
+                    <DataTableTd>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                        {t.priority}
                       </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {t.project.name} · {t.column.name} · {t.priority}
-                      </span>
-                    </div>
-                    {t.dueDate && (
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {dateBR(t.dueDate)}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ),
-        )
+                    </DataTableTd>
+                    <DataTableTd
+                      className={
+                        overdue
+                          ? "font-medium text-primary"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {dateBR(t.dueDate)}
+                    </DataTableTd>
+                    <DataTableTd className="text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/projects/${t.project.id}/tasks/${t.id}`}>
+                          Visualizar
+                        </Link>
+                      </Button>
+                    </DataTableTd>
+                  </DataTableRow>
+                );
+              })}
+            </DataTableBody>
+          </DataTable>
+        </DataTableShell>
       )}
     </div>
   );
