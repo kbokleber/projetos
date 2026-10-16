@@ -84,6 +84,7 @@ export function TaskDetailsPanel(props: {
     estimatedHours: number | null;
     completedAt: Date | null;
     archivedAt: Date | null;
+    createdAt: Date;
   };
   comments: Array<{
     id: string;
@@ -400,6 +401,15 @@ export function TaskDetailsPanel(props: {
                   disabled={!canEditMeta}
                 />
               )}
+            </PropertyRow>
+
+            <PropertyRow
+              icon={<CalendarDays className="size-3.5" />}
+              label="Data de criação"
+            >
+              <span className="px-1 text-sm text-muted-foreground">
+                {dateTimeBR(initial.createdAt)}
+              </span>
             </PropertyRow>
 
             <PropertyRow icon={<Columns3 className="size-3.5" />} label="Bucket">

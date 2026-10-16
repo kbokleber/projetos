@@ -149,6 +149,7 @@ export default async function TaskDetailPage({
           estimatedHours: task.estimatedHours,
           completedAt: task.completedAt,
           archivedAt: task.archivedAt,
+          createdAt: task.createdAt,
         }}
         comments={task.comments.map((c) => ({
           id: c.id,
