@@ -51,7 +51,7 @@ export default async function DashboardLayout({
     : null;
 
   return (
-    <div className="flex min-h-svh w-full flex-col bg-background">
+    <div className="flex h-svh w-full flex-col overflow-hidden bg-background">
       <TopBar
         userName={session.user.name}
         userEmail={session.user.email}
@@ -61,7 +61,7 @@ export default async function DashboardLayout({
         activeWorkspaceName={activeWorkspace?.name ?? null}
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <SideNav
           canManageWorkspace={canManageWorkspace}
           canSeeUsers={canSeeUsers}

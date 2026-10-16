@@ -105,7 +105,7 @@ export function SideNav({
       .sort((a, b) => b.length - a.length)[0] ?? null;
 
   return (
-    <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+    <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-4 text-sm">
         {sections.map((section) => (
           <div key={section.title}>
@@ -137,11 +137,13 @@ export function SideNav({
       </nav>
 
       {overview && (
-        <OverviewBox
-          projectsActive={overview.projectsActive}
-          tasksOpen={overview.tasksOpen}
-          tasksOverdue={overview.tasksOverdue}
-        />
+        <div className="shrink-0">
+          <OverviewBox
+            projectsActive={overview.projectsActive}
+            tasksOpen={overview.tasksOpen}
+            tasksOverdue={overview.tasksOverdue}
+          />
+        </div>
       )}
     </aside>
   );
