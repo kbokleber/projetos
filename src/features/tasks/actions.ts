@@ -377,6 +377,71 @@ export async function deleteTaskAction(taskId: string) {
   redirect(`/projects/${task.projectId}`);
 }
 
+/**
+ * Exclui definitivamente uma tarefa arquivada (somente OWNER/ADMIN do projeto
+ * ou workspace). Irreversível.
+ */
+export async function permanentlyDeleteArchivedTaskAction(taskId: string) {
+  const user = await getSession();
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      title: true,
+      projectId: true,
+      archivedAt: true,
+      project: { select: { workspaceId: true } },
+      attachments: { select: { fileUrl: true } },
+    },
+  });
+  if (!task) {
+    return { ok: false as const, error: "Tarefa não encontrada." };
+  }
+  if (!task.archivedAt) {
+    return {
+      ok: false as const,
+      error: "Só é possível excluir definitivamente tarefas arquivadas.",
+    };
+  }
+
+  try {
+    const { assertProjectAccess } = await import("@/lib/project-access");
+    await assertProjectAccess(user.id, task.projectId, "manageMembers");
+  } catch {
+    return {
+      ok: false as const,
+      error: "Somente administradores podem excluir definitivamente.",
+    };
+  }
+
+  const fileUrls = task.attachments.map((a) => a.fileUrl);
+
+  await prisma.activity.create({
+    data: {
+      workspaceId: task.project.workspaceId,
+      projectId: task.projectId,
+      taskId: task.id,
+      userId: user.id,
+      actorType: "USER",
+      actorId: user.id,
+      action: "task.purged",
+      entityType: "Task",
+      entityId: task.id,
+      metadata: JSON.stringify({ title: task.title, permanent: true }),
+    },
+  });
+
+  await prisma.task.delete({ where: { id: taskId } });
+
+  const { deleteLocalFile } = await import("@/lib/storage");
+  await Promise.all(fileUrls.map((url) => deleteLocalFile(url)));
+
+  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath("/my-tasks");
+  revalidatePath("/dashboard");
+  return { ok: true as const };
+}
+
 /** Restaura tarefa arquivada (tira da lixeira). */
 export async function restoreTaskAction(taskId: string) {
   const user = await getSession();

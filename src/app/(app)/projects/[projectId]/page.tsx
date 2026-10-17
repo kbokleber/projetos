@@ -298,6 +298,7 @@ export default async function ProjectDetailPage({
         <ArchivedTasksList
           projectId={project.id}
           canEdit={!!canEdit}
+          canPurge={!!canManageMembers}
           tasks={archivedTasks
             .filter((t): t is typeof t & { archivedAt: Date } => !!t.archivedAt)
             .map((t) => ({

@@ -3,10 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArchiveRestore, ExternalLink, Inbox } from "lucide-react";
+import { ArchiveRestore, ExternalLink, Inbox, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { dateBR, dateTimeBR } from "@/lib/format-date";
-import { restoreTaskAction } from "@/features/tasks/actions";
+import {
+  permanentlyDeleteArchivedTaskAction,
+  restoreTaskAction,
+} from "@/features/tasks/actions";
 import { cn } from "@/lib/utils";
 
 export type ArchivedTaskRow = {
@@ -31,14 +35,19 @@ export function ArchivedTasksList({
   projectId,
   tasks,
   canEdit,
+  canPurge,
 }: {
   projectId: string;
   tasks: ArchivedTaskRow[];
   canEdit: boolean;
+  /** OWNER/ADMIN do projeto ou workspace — exclusão definitiva */
+  canPurge: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<ArchivedTaskRow | null>(null);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
 
   if (tasks.length === 0) {
     return (
@@ -57,6 +66,9 @@ export function ArchivedTasksList({
         {tasks.length}{" "}
         {tasks.length === 1 ? "tarefa arquivada" : "tarefas arquivadas"}.
         Restaurar devolve a tarefa ao board na mesma coluna.
+        {canPurge
+          ? " Administradores podem excluir definitivamente."
+          : ""}
       </p>
       <ul className="divide-y divide-border rounded-xl border border-border bg-card">
         {tasks.map((t) => (
@@ -98,7 +110,7 @@ export function ArchivedTasksList({
                   : ""}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Button asChild variant="ghost" size="sm">
                 <Link href={`/projects/${projectId}/tasks/${t.id}`}>
                   <ExternalLink className="size-3.5" />
@@ -130,10 +142,66 @@ export function ArchivedTasksList({
                     : "Restaurar"}
                 </Button>
               )}
+              {canPurge && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={pending && pendingId === t.id}
+                  onClick={() => {
+                    setPurgeError(null);
+                    setPurgeTarget(t);
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                  Excluir
+                </Button>
+              )}
             </div>
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={!!purgeTarget}
+        onOpenChange={(next) => {
+          if (!next && pending) return;
+          if (!next) {
+            setPurgeTarget(null);
+            setPurgeError(null);
+          }
+        }}
+        title="Excluir tarefa definitivamente?"
+        description={
+          purgeTarget ? (
+            <>
+              A tarefa <strong>{purgeTarget.title}</strong> e todos os dados
+              relacionados (comentários, anexos, checklists) serão removidos de
+              forma permanente. Esta ação não pode ser desfeita.
+            </>
+          ) : undefined
+        }
+        confirmLabel="Sim, excluir definitivamente"
+        pending={pending}
+        pendingLabel="Excluindo…"
+        error={purgeError}
+        onConfirm={() => {
+          if (!purgeTarget) return;
+          const target = purgeTarget;
+          setPendingId(target.id);
+          startTransition(async () => {
+            const res = await permanentlyDeleteArchivedTaskAction(target.id);
+            setPendingId(null);
+            if (!res.ok) {
+              setPurgeError(res.error);
+              return;
+            }
+            setPurgeTarget(null);
+            setPurgeError(null);
+            router.refresh();
+          });
+        }}
+      />
     </div>
   );
 }
