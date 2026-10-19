@@ -161,11 +161,18 @@ export function TaskChecklist({
           )}
         </h2>
         {total > 0 && (
-          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${Math.round((done / total) * 100)}%` }}
-            />
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{
+                  width: `${Math.round((done / total) * 100)}%`,
+                }}
+              />
+            </div>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Math.round((done / total) * 100)}%
+            </span>
           </div>
         )}
       </div>
