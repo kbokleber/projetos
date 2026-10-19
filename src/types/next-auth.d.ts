@@ -23,5 +23,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     role?: GlobalRole;
+    /** id_token do Keycloak — só no JWT server-side, nunca na session do cliente */
+    idToken?: string;
   }
 }
