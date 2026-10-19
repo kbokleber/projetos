@@ -95,3 +95,23 @@ export async function deleteChecklistItemAction(itemId: string) {
     return { ok: false as const, error: "Não foi possível remover o item." };
   }
 }
+
+export async function reorderChecklistItemsAction(
+  taskId: string,
+  orderedItemIds: string[],
+) {
+  const user = await requireUser();
+  try {
+    const { projectId } = await checklistService.reorderItems(
+      user.id,
+      taskId,
+      orderedItemIds,
+    );
+    revalidateTask(projectId, taskId);
+    return { ok: true as const };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false as const, error: err.message };
+    console.error("[reorderChecklistItems]", err);
+    return { ok: false as const, error: "Não foi possível reordenar a lista." };
+  }
+}

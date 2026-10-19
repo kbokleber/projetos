@@ -1,13 +1,38 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
-import { Circle, CircleCheck, ListChecks, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Circle, CircleCheck, GripVertical, ListChecks, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   addChecklistItemAction,
   deleteChecklistItemAction,
+  reorderChecklistItemsAction,
   toggleChecklistItemAction,
   updateChecklistItemAction,
   type ChecklistActionState,
@@ -42,10 +67,27 @@ export function TaskChecklist({
     ChecklistActionState,
     FormData
   >(boundAdd, undefined);
+  const [, startReorder] = useTransition();
 
-  const items = checklists.flatMap((c) => c.items);
+  const serverItems = useMemo(
+    () => checklists.flatMap((c) => c.items),
+    [checklists],
+  );
+  const [items, setItems] = useState(serverItems);
+
+  useEffect(() => {
+    setItems(serverItems);
+  }, [serverItems]);
+
   const done = items.filter((i) => i.completed).length;
   const total = items.length;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     if (state?.ok) {
@@ -55,6 +97,48 @@ export function TaskChecklist({
     }
   }, [state, router]);
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const previous = items;
+    const next = arrayMove(items, oldIndex, newIndex);
+    setItems(next);
+
+    startReorder(async () => {
+      const res = await reorderChecklistItemsAction(
+        taskId,
+        next.map((i) => i.id),
+      );
+      if (!res.ok) {
+        setItems(previous);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  const list = (
+    <ul className="flex flex-col">
+      {items.map((item) =>
+        canEdit ? (
+          <SortableChecklistRow
+            key={item.id}
+            item={item}
+            canEdit
+            showHandle={total > 1}
+          />
+        ) : (
+          <ChecklistRow key={item.id} item={item} canEdit={false} />
+        ),
+      )}
+    </ul>
+  );
+
   return (
     <section className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -62,11 +146,17 @@ export function TaskChecklist({
           <ListChecks className="size-3.5" />
           Lista de verificação
           <span className="font-normal normal-case tracking-normal">
-            ({done} de {total} {total === 1 ? "item concluído" : "itens concluídos"})
+            ({done} de {total}{" "}
+            {total === 1 ? "item concluído" : "itens concluídos"})
           </span>
           {!canEdit && total > 0 && (
             <span className="font-normal normal-case tracking-normal">
               · somente leitura
+            </span>
+          )}
+          {canEdit && total > 1 && (
+            <span className="font-normal normal-case tracking-normal">
+              · arraste para reordenar
             </span>
           )}
         </h2>
@@ -84,16 +174,21 @@ export function TaskChecklist({
         <p className="text-sm text-muted-foreground">
           Nenhuma subtarefa nesta lista.
         </p>
+      ) : canEdit ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={items.map((i) => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {list}
+          </SortableContext>
+        </DndContext>
       ) : (
-        <ul className="flex flex-col">
-          {items.map((item) => (
-            <ChecklistRow
-              key={item.id}
-              item={item}
-              canEdit={canEdit}
-            />
-          ))}
-        </ul>
+        list
       )}
 
       {canEdit && (
@@ -134,12 +229,70 @@ export function TaskChecklist({
   );
 }
 
-function ChecklistRow({
+function SortableChecklistRow({
   item,
   canEdit,
+  showHandle,
 }: {
   item: ChecklistItemView;
   canEdit: boolean;
+  showHandle: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: item.id,
+    disabled: !showHandle,
+  });
+
+  return (
+    <ChecklistRow
+      item={item}
+      canEdit={canEdit}
+      setNodeRef={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      isDragging={isDragging}
+      dragHandle={
+        showHandle ? (
+          <button
+            type="button"
+            title="Arrastar para reordenar"
+            className="mt-0.5 shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-4" />
+          </button>
+        ) : (
+          <span className="mt-0.5 inline-block size-5 shrink-0" aria-hidden />
+        )
+      }
+    />
+  );
+}
+
+function ChecklistRow({
+  item,
+  canEdit,
+  setNodeRef,
+  style,
+  isDragging,
+  dragHandle,
+}: {
+  item: ChecklistItemView;
+  canEdit: boolean;
+  setNodeRef?: (node: HTMLElement | null) => void;
+  style?: React.CSSProperties;
+  isDragging?: boolean;
+  dragHandle?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -153,11 +306,16 @@ function ChecklistRow({
 
   return (
     <li
+      ref={setNodeRef}
+      style={style}
       className={cn(
-        "group flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-muted/40",
+        "group flex items-start gap-1 rounded-md px-1 py-1.5 transition-colors hover:bg-muted/40",
         pending && "opacity-60",
+        isDragging && "z-10 bg-card shadow-md ring-1 ring-border",
       )}
     >
+      {dragHandle}
+
       <button
         type="button"
         disabled={!canEdit || pending}

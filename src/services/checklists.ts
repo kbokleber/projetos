@@ -236,4 +236,44 @@ export const checklistService = {
 
     return { projectId: access.projectId, taskId: item.checklist.taskId };
   },
+
+  /** Reordena itens da checklist padrão da tarefa. */
+  async reorderItems(
+    userId: string,
+    taskId: string,
+    orderedItemIds: string[],
+  ) {
+    const access = await assertTaskAccess(userId, taskId, "write");
+    if (orderedItemIds.length === 0) {
+      return { projectId: access.projectId, taskId };
+    }
+
+    const checklist = await ensureDefaultChecklist(taskId);
+    const existing = await prisma.checklistItem.findMany({
+      where: { checklistId: checklist.id },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((i) => i.id));
+    if (
+      orderedItemIds.length !== existingIds.size ||
+      orderedItemIds.some((id) => !existingIds.has(id))
+    ) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Ordem inválida para a lista de verificação.",
+        422,
+      );
+    }
+
+    await prisma.$transaction(
+      orderedItemIds.map((id, index) =>
+        prisma.checklistItem.update({
+          where: { id },
+          data: { position: (index + 1) * POSITION_GAP },
+        }),
+      ),
+    );
+
+    return { projectId: access.projectId, taskId };
+  },
 };
