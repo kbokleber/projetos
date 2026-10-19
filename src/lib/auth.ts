@@ -161,18 +161,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return `/login?error=Configuration`;
       }
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       if (account?.provider === "keycloak") {
         if (account.id_token) {
           token.idToken = account.id_token;
         }
 
+        // Auth.js v5 sem adapter: token.sub NÃO é o sub do Keycloak.
+        // O sub correto vem de providerAccountId (ou profile.sub).
         const sub =
-          typeof token.sub === "string"
-            ? token.sub
-            : typeof account.providerAccountId === "string"
-              ? account.providerAccountId
-              : undefined;
+          (typeof account.providerAccountId === "string" &&
+            account.providerAccountId) ||
+          (typeof (profile as { sub?: string } | undefined)?.sub === "string" &&
+            (profile as { sub: string }).sub) ||
+          (typeof token.sub === "string" ? token.sub : undefined);
 
         if (sub) {
           const local = await prisma.user.findUnique({

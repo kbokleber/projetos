@@ -149,6 +149,13 @@ export const authService = {
   },
 
   async getActiveWorkspaces(userId: string) {
+    if (!userId) {
+      throw new AppError(
+        "UNAUTHORIZED",
+        "Sessão inválida. Faça login novamente.",
+        401,
+      );
+    }
     await this.ensureWorkspaceMembership(userId);
     return prisma.workspace.findMany({
       where: { members: { some: { userId } } },
