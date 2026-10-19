@@ -1,8 +1,14 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ForgotForm } from "@/features/auth/forgot-form";
 import { APP_NAME } from "@/lib/constants";
+import { isKeycloakConfigured, isLegacyLoginEnabled } from "@/lib/keycloak";
 
 export default function ForgotPasswordPage() {
+  if (isKeycloakConfigured() && !isLegacyLoginEnabled()) {
+    redirect("/login");
+  }
+
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm">

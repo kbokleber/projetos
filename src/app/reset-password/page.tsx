@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ResetForm } from "@/features/auth/reset-form";
 import { APP_NAME } from "@/lib/constants";
+import { isKeycloakConfigured, isLegacyLoginEnabled } from "@/lib/keycloak";
 
 type SearchParams = Promise<{ token?: string }>;
 
@@ -9,6 +11,10 @@ export default async function ResetPasswordPage({
 }: {
   searchParams: SearchParams;
 }) {
+  if (isKeycloakConfigured() && !isLegacyLoginEnabled()) {
+    redirect("/login");
+  }
+
   const { token } = await searchParams;
 
   return (

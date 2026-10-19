@@ -1,10 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { signIn, signOut } from "@/lib/auth";
+import { signIn, auth } from "@/lib/auth";
 import { authService } from "@/services/auth";
 import { AppError, toErrorResponse } from "@/lib/errors";
-import { auth } from "@/lib/auth";
 import {
   loginSchema,
   forgotPasswordSchema,
@@ -60,6 +59,10 @@ export async function loginAction(
   }
 }
 
+export async function keycloakSignInAction() {
+  await signIn("keycloak", { redirectTo: "/dashboard" });
+}
+
 export async function signupAction(): Promise<ActionResult> {
   return {
     ok: false,
@@ -69,7 +72,7 @@ export async function signupAction(): Promise<ActionResult> {
 }
 
 export async function logoutAction() {
-  await signOut({ redirectTo: "/login" });
+  redirect("/api/auth/keycloak-logout");
 }
 
 export async function forgotPasswordAction(

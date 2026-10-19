@@ -9,6 +9,11 @@ import {
 import { TopBar } from "@/components/app-shell/top-bar";
 import { SideNav } from "@/components/app-shell/side-nav";
 import { dashboardService } from "@/services/dashboard";
+import { prisma } from "@/lib/prisma";
+import {
+  getKeycloakAccountUrl,
+  isKeycloakConfigured,
+} from "@/lib/keycloak";
 
 export default async function DashboardLayout({
   children,
@@ -50,6 +55,15 @@ export default async function DashboardLayout({
         .catch(() => null)
     : null;
 
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { passwordHash: true },
+  });
+  const hasLocalPassword = Boolean(dbUser?.passwordHash);
+  const keycloakAccountUrl = isKeycloakConfigured()
+    ? (getKeycloakAccountUrl() ?? null)
+    : null;
+
   return (
     <div className="flex h-svh w-full flex-col overflow-hidden bg-background">
       <TopBar
@@ -59,6 +73,8 @@ export default async function DashboardLayout({
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspace?.id ?? null}
         activeWorkspaceName={activeWorkspace?.name ?? null}
+        hasLocalPassword={hasLocalPassword}
+        keycloakAccountUrl={keycloakAccountUrl}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

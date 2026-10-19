@@ -68,6 +68,8 @@ model User {
   avatarUrl    String?
   role         GlobalRole @default(USER)
   active       Boolean    @default(true)
+  /// Subject (sub) do Keycloak — vínculo SSO; null = só login legado
+  keycloakSub  String?    @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

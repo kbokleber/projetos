@@ -1,12 +1,20 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/features/auth/login-form";
+import { KeycloakLoginButton } from "@/features/auth/keycloak-login-button";
 import { APP_NAME } from "@/lib/constants";
+import {
+  isKeycloakConfigured,
+  isLegacyLoginEnabled,
+  loginErrorMessage,
+} from "@/lib/keycloak";
 
 type SearchParams = Promise<{
   registered?: string;
   reset?: string;
   session?: string;
+  legacy?: string;
+  error?: string;
 }>;
 
 export default async function LoginPage({
@@ -18,6 +26,11 @@ export default async function LoginPage({
   const justRegistered = params.registered === "1";
   const justReset = params.reset === "1";
   const sessionExpired = params.session === "expired";
+  const keycloakOn = isKeycloakConfigured();
+  const legacyRequested = params.legacy === "1";
+  const showLegacyForm =
+    !keycloakOn || (legacyRequested && isLegacyLoginEnabled());
+  const errorMessage = loginErrorMessage(params.error);
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
@@ -49,19 +62,38 @@ export default async function LoginPage({
             Senha redefinida. Faça login novamente.
           </p>
         )}
+        {errorMessage && (
+          <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errorMessage}
+          </p>
+        )}
 
-        <LoginForm />
+        {keycloakOn && (
+          <div className="mb-4">
+            <KeycloakLoginButton />
+          </div>
+        )}
 
-        <div className="mt-4 flex flex-col items-center gap-1 text-sm">
-          <Link
-            href="/forgot-password"
-            className="text-primary hover:underline"
-          >
-            Esqueci minha senha
-          </Link>
-        </div>
+        {showLegacyForm && (
+          <>
+            {keycloakOn && (
+              <p className="mb-3 text-center text-xs text-muted-foreground">
+                Login legado (apenas administradores)
+              </p>
+            )}
+            <LoginForm />
+            <div className="mt-4 flex flex-col items-center gap-1 text-sm">
+              <Link
+                href="/forgot-password"
+                className="text-primary hover:underline"
+              >
+                Esqueci minha senha
+              </Link>
+            </div>
+          </>
+        )}
 
-        {process.env.NODE_ENV !== "production" && (
+        {!keycloakOn && process.env.NODE_ENV !== "production" && (
           <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">Credenciais de dev</p>
             <p>admin@example.com / admin123</p>
