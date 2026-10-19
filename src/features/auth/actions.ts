@@ -71,10 +71,6 @@ export async function signupAction(): Promise<ActionResult> {
   };
 }
 
-export async function logoutAction() {
-  redirect("/api/auth/keycloak-logout");
-}
-
 export async function forgotPasswordAction(
   _prev: ActionResult | undefined,
   formData: FormData,

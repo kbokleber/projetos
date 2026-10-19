@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logoutAction } from "@/features/auth/actions";
 import { switchWorkspaceAction } from "@/features/workspaces/actions";
 import { APP_NAME } from "@/lib/constants";
 import { ChevronDown, Plus } from "lucide-react";
@@ -174,27 +173,20 @@ export function TopBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-              >
-                Sair
-              </button>
-            </form>
+            <DropdownMenuItem asChild>
+              <a href="/api/auth/keycloak-logout">Sair</a>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <form action={logoutAction} className="hidden sm:block">
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
-            className="text-topbar-foreground/80 hover:bg-topbar-foreground/10 hover:text-topbar-foreground"
-          >
-            Sair
-          </Button>
-        </form>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="hidden text-topbar-foreground/80 hover:bg-topbar-foreground/10 hover:text-topbar-foreground sm:inline-flex"
+        >
+          <a href="/api/auth/keycloak-logout">Sair</a>
+        </Button>
 
         <Button asChild size="sm" className="hidden sm:inline-flex">
           <Link href="/projects/new">
