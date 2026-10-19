@@ -26,6 +26,8 @@ export function TopBar({
   workspaces,
   activeWorkspaceId,
   activeWorkspaceName,
+  hasLocalPassword = true,
+  keycloakAccountUrl,
 }: {
   userName: string | null | undefined;
   userEmail: string | null | undefined;
@@ -33,6 +35,8 @@ export function TopBar({
   workspaces: WorkspaceOption[];
   activeWorkspaceId: string | null;
   activeWorkspaceName: string | null;
+  hasLocalPassword?: boolean;
+  keycloakAccountUrl?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -150,9 +154,25 @@ export function TopBar({
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings/account">Alterar senha</Link>
-            </DropdownMenuItem>
+            {hasLocalPassword ? (
+              <DropdownMenuItem asChild>
+                <Link href="/settings/account">Alterar senha</Link>
+              </DropdownMenuItem>
+            ) : keycloakAccountUrl ? (
+              <DropdownMenuItem asChild>
+                <a
+                  href={keycloakAccountUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Conta Keycloak
+                </a>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem asChild>
+                <Link href="/settings/account">Minha conta</Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <form action={logoutAction}>
               <button

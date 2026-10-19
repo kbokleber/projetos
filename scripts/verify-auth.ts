@@ -1,13 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
-import { PrismaClient } from "../src/generated/prisma/client";
-
-const adapter = new PrismaLibSql({
-  url: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
-});
-
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "../src/lib/prisma";
 
 let failures = 0;
 function check(name: string, ok: boolean, detail?: string) {
@@ -95,12 +88,43 @@ async function main() {
     : false;
   check("Nova senha é persistida e verificável", newPassOk);
 
-  // 7. Limpeza
+  // 7. keycloakSub (coluna SSO) — vínculo e unicidade
+  const fakeSub = `kc-smoke-${Date.now()}`;
+  await prisma.user.update({
+    where: { id: created.id },
+    data: { keycloakSub: fakeSub },
+  });
+  const bySub = await prisma.user.findUnique({ where: { keycloakSub: fakeSub } });
+  check("keycloakSub gravado e consultável", bySub?.id === created.id, fakeSub);
+
+  const byEmailInsensitive = await prisma.user.findFirst({
+    where: {
+      email: { equals: testEmail.toUpperCase(), mode: "insensitive" },
+    },
+  });
+  check(
+    "Busca de e-mail case-insensitive",
+    byEmailInsensitive?.id === created.id,
+  );
+
+  // 8. Limpeza
   await prisma.passwordResetToken.deleteMany({ where: { userId: created.id } });
   await prisma.workspaceMember.deleteMany({ where: { userId: created.id } });
   await prisma.workspace.delete({ where: { id: ws.id } });
   await prisma.user.delete({ where: { id: created.id } });
   check("Limpeza dos dados de teste", true);
+
+  const keycloakConfigured = Boolean(
+    process.env.AUTH_KEYCLOAK_ID &&
+      process.env.AUTH_KEYCLOAK_SECRET &&
+      process.env.AUTH_KEYCLOAK_ISSUER,
+  );
+  console.log(
+    `\n  ℹ️  Keycloak configurado: ${keycloakConfigured ? "sim" : "não (só legado)"}`,
+  );
+  console.log(
+    `  ℹ️  LEGACY_LOGIN_ENABLED: ${process.env.LEGACY_LOGIN_ENABLED ?? "(não definido)"}`,
+  );
 
   console.log(
     "\n" +
