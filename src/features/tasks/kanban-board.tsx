@@ -319,32 +319,36 @@ export function KanbanBoard({
         setItems(columns);
       }}
     >
-      <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
-        {items.map((col) => (
-          <KanbanColumn
-            key={col.id}
-            projectId={projectId}
-            boardId={boardId}
-            column={col}
-            canEdit={canEdit}
-            columns={columnOptions}
-            onMenuMove={(taskId, columnId) => {
-              setItems((prev) => {
-                const target = prev.find((c) => c.id === columnId);
-                if (!target) return prev;
-                return moveTaskInBoard(
-                  prev,
-                  taskId,
-                  columnId,
-                  target.tasks.length,
-                );
-              });
-            }}
-          />
-        ))}
+      <div className="flex flex-col gap-2">
         {canEdit && (
-          <AddBoardColumnButton projectId={projectId} boardId={boardId} />
+          <div className="flex justify-end">
+            <AddBoardColumnButton projectId={projectId} boardId={boardId} />
+          </div>
         )}
+        <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
+          {items.map((col) => (
+            <KanbanColumn
+              key={col.id}
+              projectId={projectId}
+              boardId={boardId}
+              column={col}
+              canEdit={canEdit}
+              columns={columnOptions}
+              onMenuMove={(taskId, columnId) => {
+                setItems((prev) => {
+                  const target = prev.find((c) => c.id === columnId);
+                  if (!target) return prev;
+                  return moveTaskInBoard(
+                    prev,
+                    taskId,
+                    columnId,
+                    target.tasks.length,
+                  );
+                });
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       <DragOverlay dropAnimation={null}>

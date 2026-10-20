@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/features/boards/column-actions";
 import { isFixedSystemColumnName } from "@/lib/board-columns";
 
+/** Botão compacto acima do quadro — não ocupa coluna nem força scroll. */
 export function AddBoardColumnButton({
   projectId,
   boardId,
@@ -30,6 +31,25 @@ export function AddBoardColumnButton({
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!panelRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setName("");
+        setError(null);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
 
   function submit() {
     const trimmed = name.trim();
@@ -54,59 +74,74 @@ export function AddBoardColumnButton({
     });
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex w-72 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-3 py-8 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-      >
-        <Plus className="size-4" />
-        Adicionar etapa
-      </button>
-    );
-  }
-
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-border bg-card p-3">
-      <p className="text-xs font-medium text-muted-foreground">Nova etapa</p>
-      <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            submit();
-          }
-          if (e.key === "Escape") {
-            setOpen(false);
-            setName("");
-            setError(null);
-          }
+    <div className="relative" ref={panelRef}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          setOpen((v) => !v);
+          setError(null);
         }}
-        placeholder="Ex.: Homologação"
-        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={pending} onClick={submit}>
-          {pending ? "Salvando…" : "Criar"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          onClick={() => {
-            setOpen(false);
-            setName("");
-            setError(null);
-          }}
-        >
-          Cancelar
-        </Button>
-      </div>
+        aria-expanded={open}
+      >
+        <Plus className="size-3.5" />
+        Nova etapa
+      </Button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-card p-3 shadow-md">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Entre A Fazer e Concluído
+          </p>
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+              if (e.key === "Escape") {
+                setOpen(false);
+                setName("");
+                setError(null);
+              }
+            }}
+            placeholder="Ex.: Homologação"
+            className="mb-2 h-8 w-full rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          />
+          {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7"
+              disabled={pending}
+              onClick={() => {
+                setOpen(false);
+                setName("");
+                setError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7"
+              disabled={pending}
+              onClick={submit}
+            >
+              {pending ? "…" : "Criar"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
