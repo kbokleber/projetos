@@ -32,8 +32,8 @@ export default async function SettingsWorkspacesPage() {
   const members = await workspaceService.listMembers(session.user.id, activeId);
 
   const activeMeta = workspaces.find((w) => w.id === activeId);
-  const myRole = activeMeta?.members[0]?.role;
-  const canManage = myRole === "OWNER" || myRole === "ADMIN";
+  // Só o OWNER convida/remove membros; ADMIN e MEMBER apenas visualizam.
+  const canManageMembers = role === "OWNER";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
@@ -121,10 +121,15 @@ export default async function SettingsWorkspacesPage() {
           <h2 className="text-sm font-medium">
             Membros — {activeMeta?.name ?? "workspace ativo"}
           </h2>
+          {!canManageMembers && (
+            <p className="text-xs text-muted-foreground">
+              Apenas o OWNER pode convidar ou remover membros deste workspace.
+            </p>
+          )}
           <WorkspaceMembersPanel
             workspaceId={activeId}
             members={members}
-            canManage={canManage}
+            canManage={canManageMembers}
             currentUserId={session.user.id}
           />
         </section>

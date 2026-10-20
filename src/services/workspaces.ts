@@ -118,7 +118,7 @@ export const workspaceService = {
       role: "ADMIN" | "MEMBER";
     },
   ) {
-    await requireMembership(actorId, input.workspaceId, ["OWNER", "ADMIN"]);
+    await requireMembership(actorId, input.workspaceId, ["OWNER"]);
 
     const user = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase() },
@@ -163,10 +163,7 @@ export const workspaceService = {
   },
 
   async removeMember(actorId: string, workspaceId: string, memberId: string) {
-    const actor = await requireMembership(actorId, workspaceId, [
-      "OWNER",
-      "ADMIN",
-    ]);
+    await requireMembership(actorId, workspaceId, ["OWNER"]);
 
     const target = await prisma.workspaceMember.findFirst({
       where: { id: memberId, workspaceId },
@@ -186,13 +183,6 @@ export const workspaceService = {
       throw new AppError(
         "FORBIDDEN",
         "Você não pode remover a si mesmo.",
-        403,
-      );
-    }
-    if (actor.role === "ADMIN" && target.role === "ADMIN") {
-      throw new AppError(
-        "FORBIDDEN",
-        "Admins não podem remover outros admins.",
         403,
       );
     }
