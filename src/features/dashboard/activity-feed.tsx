@@ -25,8 +25,9 @@ const ACTION_META: Record<string, { icon: React.ReactNode; label: string }> = {
   "comment.created": { icon: <MessageSquare className="size-3.5" />, label: "comentou em" },
   "project.created": { icon: <Plus className="size-3.5" />, label: "criou projeto" },
   "project.updated": { icon: <Pencil className="size-3.5" />, label: "atualizou projeto" },
-  "column.created": { icon: <Plus className="size-3.5" />, label: "criou coluna" },
-  "column.updated": { icon: <Pencil className="size-3.5" />, label: "atualizou coluna" },
+  "column.created": { icon: <Plus className="size-3.5" />, label: "criou etapa" },
+  "column.deleted": { icon: <Trash2 className="size-3.5" />, label: "removeu etapa" },
+  "column.updated": { icon: <Pencil className="size-3.5" />, label: "atualizou etapa" },
   "board.created": { icon: <Plus className="size-3.5" />, label: "criou board" },
 };
 

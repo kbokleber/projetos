@@ -46,6 +46,10 @@ import {
 } from "@/features/tasks/actions";
 import { TaskCardMenu } from "@/features/tasks/task-card-menu";
 import { QuickTaskButton } from "@/features/tasks/quick-task-button";
+import {
+  AddBoardColumnButton,
+  BoardColumnMenu,
+} from "@/features/boards/board-column-controls";
 import { cn } from "@/lib/utils";
 
 type Assignee = { user: { id: string; name: string | null } };
@@ -338,6 +342,9 @@ export function KanbanBoard({
             }}
           />
         ))}
+        {canEdit && (
+          <AddBoardColumnButton projectId={projectId} boardId={boardId} />
+        )}
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -393,7 +400,7 @@ function KanbanColumn({
       )}
     >
       <header className="flex shrink-0 items-center justify-between gap-1">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {column.color && (
             <span
               className="size-2.5 shrink-0 rounded-sm"
@@ -405,22 +412,33 @@ function KanbanColumn({
             {column.tasks.length}
           </span>
         </div>
-        {isDoneColumn && (
-          <button
-            type="button"
-            onClick={() => setCollapsed((v) => !v)}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-            title={collapsed ? "Expandir coluna" : "Recolher coluna"}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "Expandir concluídas" : "Recolher concluídas"}
-          >
-            {collapsed ? (
-              <ChevronRight className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
-            )}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {canEdit && (
+            <BoardColumnMenu
+              projectId={projectId}
+              columnId={column.id}
+              columnName={column.name}
+            />
+          )}
+          {isDoneColumn && (
+            <button
+              type="button"
+              onClick={() => setCollapsed((v) => !v)}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+              title={collapsed ? "Expandir coluna" : "Recolher coluna"}
+              aria-expanded={!collapsed}
+              aria-label={
+                collapsed ? "Expandir concluídas" : "Recolher concluídas"
+              }
+            >
+              {collapsed ? (
+                <ChevronRight className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </button>
+          )}
+        </div>
       </header>
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>

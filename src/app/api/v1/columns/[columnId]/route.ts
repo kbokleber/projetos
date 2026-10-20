@@ -1,24 +1,28 @@
 import { withApi } from "@/lib/api/with-api";
-import { apiOk } from "@/lib/api/response";
-import { z } from "zod";
-import { columnService } from "@/services/boards";
-import { columnParamsSchema, updateColumnSchema } from "@/schemas/api";
+import { apiError } from "@/lib/api/response";
+import { columnParamsSchema } from "@/schemas/api";
 
 export const dynamic = "force-dynamic";
 
+/** Etapas do quadro só podem ser alteradas pela UI — não pela API. */
 export const PATCH = withApi(
-  {
-    requireScope: "projects:write",
-    schema: updateColumnSchema,
-    paramsSchema: columnParamsSchema,
-  },
-  async ({ auth, params, body }) => {
-    const data = body as z.infer<typeof updateColumnSchema>;
-    const updated = await columnService.update(
-      { userId: auth.userId, actorType: "API" },
-      params.columnId,
-      { name: data.name, color: data.color, position: data.position },
+  { requireScope: "projects:write", paramsSchema: columnParamsSchema },
+  async () => {
+    return apiError(
+      "FORBIDDEN",
+      "Alteração de etapas do quadro só é permitida pela interface do sistema.",
+      403,
     );
-    return apiOk(updated);
+  },
+);
+
+export const DELETE = withApi(
+  { requireScope: "projects:write", paramsSchema: columnParamsSchema },
+  async () => {
+    return apiError(
+      "FORBIDDEN",
+      "Exclusão de etapas do quadro só é permitida pela interface do sistema.",
+      403,
+    );
   },
 );

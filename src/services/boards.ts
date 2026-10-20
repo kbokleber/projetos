@@ -1,9 +1,17 @@
 /**
  * Service de Boards e Columns.
+ * Criação/edição/exclusão de colunas é só pela UI (server actions) —
+ * a API pública não deve chamar create/update/remove de coluna.
  */
 
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { POSITION_GAP } from "@/lib/constants";
+import {
+  isCompletionColumnName,
+  isFixedStartColumnName,
+  isFixedSystemColumnName,
+} from "@/lib/board-columns";
 
 export const boardService = {
   async listByProject(projectId: string) {
@@ -23,8 +31,14 @@ export const boardService = {
     return board;
   },
 
-  async create(actor: { userId: string | null; actorType: "USER" | "API" }, projectId: string, data: { name: string; description?: string | null }) {
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
+  async create(
+    actor: { userId: string | null; actorType: "USER" | "API" },
+    projectId: string,
+    data: { name: string; description?: string | null },
+  ) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
     if (!project) throw new AppError("NOT_FOUND", "Projeto não encontrado.", 404);
 
     const board = await prisma.board.create({
@@ -53,6 +67,41 @@ export const boardService = {
   },
 };
 
+async function assertNoDuplicateCompletion(
+  boardId: string,
+  name: string,
+  exceptColumnId?: string,
+) {
+  if (!isCompletionColumnName(name)) return;
+  const siblings = await prisma.boardColumn.findMany({
+    where: { boardId, ...(exceptColumnId ? { id: { not: exceptColumnId } } : {}) },
+    select: { id: true, name: true },
+  });
+  if (siblings.some((c) => isCompletionColumnName(c.name))) {
+    throw new AppError(
+      "CONFLICT",
+      "Já existe uma coluna de conclusão neste quadro.",
+      409,
+    );
+  }
+}
+
+async function nextIntermediatePosition(boardId: string) {
+  const columns = await prisma.boardColumn.findMany({
+    where: { boardId },
+    orderBy: { position: "asc" },
+    select: { id: true, name: true, position: true },
+  });
+  const done = columns.find((c) => isCompletionColumnName(c.name));
+  if (done) {
+    const before = columns.filter((c) => c.position < done.position);
+    const left = before[before.length - 1]?.position ?? 0;
+    return (left + done.position) / 2;
+  }
+  const last = columns[columns.length - 1];
+  return (last?.position ?? 0) + POSITION_GAP;
+}
+
 export const columnService = {
   async listByBoard(boardId: string) {
     return prisma.boardColumn.findMany({
@@ -61,19 +110,42 @@ export const columnService = {
     });
   },
 
-  async create(actor: { userId: string | null; actorType: "USER" | "API" }, boardId: string, data: { name: string; color?: string | null; position: number }) {
+  async create(
+    actor: { userId: string | null; actorType: "USER" | "API" },
+    boardId: string,
+    data: { name: string; color?: string | null; position?: number },
+  ) {
+    const name = data.name.trim();
+    if (!name) {
+      throw new AppError("VALIDATION_ERROR", "Informe o nome da etapa.", 400);
+    }
+    if (isFixedStartColumnName(name)) {
+      throw new AppError(
+        "FORBIDDEN",
+        'A etapa "A Fazer" é fixa e não pode ser criada novamente.',
+        403,
+      );
+    }
+
     const board = await prisma.board.findUnique({
       where: { id: boardId },
       include: { project: true },
     });
     if (!board) throw new AppError("NOT_FOUND", "Board não encontrado.", 404);
 
+    await assertNoDuplicateCompletion(boardId, name);
+
+    const position =
+      data.position !== undefined && Number.isFinite(data.position)
+        ? data.position
+        : await nextIntermediatePosition(boardId);
+
     const column = await prisma.boardColumn.create({
       data: {
         boardId,
-        name: data.name,
+        name,
         color: data.color ?? null,
-        position: data.position,
+        position,
       },
     });
 
@@ -94,17 +166,75 @@ export const columnService = {
     return column;
   },
 
-  async update(actor: { userId: string | null; actorType: "USER" | "API" }, columnId: string, data: { name?: string; color?: string | null; position?: number }) {
+  async update(
+    actor: { userId: string | null; actorType: "USER" | "API" },
+    columnId: string,
+    data: { name?: string; color?: string | null; position?: number },
+  ) {
     const existing = await prisma.boardColumn.findUnique({
       where: { id: columnId },
       include: { board: { include: { project: true } } },
     });
     if (!existing) throw new AppError("NOT_FOUND", "Coluna não encontrada.", 404);
 
+    if (isFixedSystemColumnName(existing.name)) {
+      throw new AppError(
+        "FORBIDDEN",
+        `A etapa "${existing.name}" é fixa e não pode ser alterada.`,
+        403,
+      );
+    }
+
+    const nextName =
+      data.name !== undefined ? data.name.trim() : undefined;
+    if (nextName !== undefined) {
+      if (!nextName) {
+        throw new AppError("VALIDATION_ERROR", "Informe o nome da etapa.", 400);
+      }
+      if (isFixedStartColumnName(nextName)) {
+        throw new AppError(
+          "FORBIDDEN",
+          'Não é permitido renomear para "A Fazer".',
+          403,
+        );
+      }
+      await assertNoDuplicateCompletion(
+        existing.boardId,
+        nextName,
+        columnId,
+      );
+    }
+
+    if (data.position !== undefined) {
+      // Etapas intermediárias podem reordenar, mas não atravessar A Fazer / Concluído
+      const siblings = await prisma.boardColumn.findMany({
+        where: { boardId: existing.boardId },
+        select: { name: true, position: true },
+      });
+      const startPos = siblings.find((c) => isFixedStartColumnName(c.name))
+        ?.position;
+      const donePos = siblings.find((c) => isCompletionColumnName(c.name))
+        ?.position;
+      if (startPos !== undefined && data.position <= startPos) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          'A etapa deve ficar depois de "A Fazer".',
+          400,
+        );
+      }
+      if (donePos !== undefined && data.position >= donePos) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          'A etapa deve ficar antes de "Concluído".',
+          400,
+        );
+      }
+    }
+
     const updated = await prisma.boardColumn.update({
       where: { id: columnId },
       data: {
-        ...(data.name !== undefined && { name: data.name }),
+        ...(nextName !== undefined && { name: nextName }),
         ...(data.color !== undefined && { color: data.color }),
         ...(data.position !== undefined && { position: data.position }),
       },
@@ -126,5 +256,50 @@ export const columnService = {
 
     return updated;
   },
-};
 
+  async remove(
+    actor: { userId: string | null; actorType: "USER" | "API" },
+    columnId: string,
+  ) {
+    const existing = await prisma.boardColumn.findUnique({
+      where: { id: columnId },
+      include: {
+        board: { include: { project: true } },
+        _count: { select: { tasks: true } },
+      },
+    });
+    if (!existing) throw new AppError("NOT_FOUND", "Coluna não encontrada.", 404);
+
+    if (isFixedSystemColumnName(existing.name)) {
+      throw new AppError(
+        "FORBIDDEN",
+        `A etapa "${existing.name}" é fixa e não pode ser excluída.`,
+        403,
+      );
+    }
+
+    if (existing._count.tasks > 0) {
+      throw new AppError(
+        "CONFLICT",
+        "Mova ou conclua as tarefas desta etapa antes de excluí-la.",
+        409,
+      );
+    }
+
+    await prisma.boardColumn.delete({ where: { id: columnId } });
+
+    await prisma.activity.create({
+      data: {
+        workspaceId: existing.board.project.workspaceId,
+        projectId: existing.board.projectId,
+        userId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.userId ?? `api:${existing.board.project.workspaceId}`,
+        action: "column.deleted",
+        entityType: "BoardColumn",
+        entityId: columnId,
+        metadata: JSON.stringify({ name: existing.name }),
+      },
+    });
+  },
+};
