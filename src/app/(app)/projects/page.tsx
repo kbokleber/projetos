@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { projectWhereForUser } from "@/lib/project-access";
+import { isCompletionColumnName } from "@/lib/task-completion";
 import { ProjectLogo } from "@/components/project-logo";
 import {
   PROJECT_STATUSES,
@@ -67,16 +68,37 @@ export default async function ProjectsPage({
       ? (statusRaw as ProjectStatusValue)
       : null;
 
+  const projectFilter = {
+    archivedAt: null as null,
+    workspaceId: active.id,
+    AND: [projectWhereForUser(session.user.id)],
+  };
+
+  // Mesma regra do dashboard: em aberto = sem completedAt e fora de colunas Concluído/Done
+  const boardColumns = await prisma.boardColumn.findMany({
+    where: { board: { project: projectFilter } },
+    select: { id: true, name: true },
+  });
+  const doneColumnIds = boardColumns
+    .filter((c) => isCompletionColumnName(c.name))
+    .map((c) => c.id);
+
+  const openTasksWhere = {
+    archivedAt: null as null,
+    completedAt: null as null,
+    ...(doneColumnIds.length > 0
+      ? { columnId: { notIn: doneColumnIds } }
+      : {}),
+  };
+
   const projects = await prisma.project.findMany({
     where: {
-      archivedAt: null,
-      workspaceId: active.id,
-      AND: [projectWhereForUser(session.user.id)],
+      ...projectFilter,
       ...(statusFilter ? { status: statusFilter } : {}),
     },
     orderBy: { updatedAt: "desc" },
     include: {
-      _count: { select: { tasks: { where: { archivedAt: null } } } },
+      _count: { select: { tasks: { where: openTasksWhere } } },
       members: { where: { userId: session.user.id }, select: { id: true } },
     },
   });
@@ -145,7 +167,7 @@ export default async function ProjectsPage({
               <tr>
                 <DataTableTh>Projeto</DataTableTh>
                 <DataTableTh>Status</DataTableTh>
-                <DataTableTh>Tarefas</DataTableTh>
+                <DataTableTh>Em aberto</DataTableTh>
                 <DataTableTh>Atualizado</DataTableTh>
                 <DataTableTh className="text-right">Abrir</DataTableTh>
               </tr>
