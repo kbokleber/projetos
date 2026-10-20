@@ -422,6 +422,7 @@ function KanbanColumn({
               projectId={projectId}
               columnId={column.id}
               columnName={column.name}
+              taskCount={column.tasks.length}
             />
           )}
           {isDoneColumn && (

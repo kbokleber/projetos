@@ -278,15 +278,50 @@ export const columnService = {
       );
     }
 
-    if (existing._count.tasks > 0) {
+    const siblings = await prisma.boardColumn.findMany({
+      where: { boardId: existing.boardId },
+      select: { id: true, name: true },
+      orderBy: { position: "asc" },
+    });
+    const startCol = siblings.find((c) => isFixedStartColumnName(c.name));
+    if (!startCol || startCol.id === columnId) {
       throw new AppError(
         "CONFLICT",
-        "Mova ou conclua as tarefas desta etapa antes de excluí-la.",
+        'Não foi possível localizar a etapa "A Fazer" para receber as tarefas.',
         409,
       );
     }
 
-    await prisma.boardColumn.delete({ where: { id: columnId } });
+    const movedCount = existing._count.tasks;
+
+    await prisma.$transaction(async (tx) => {
+      if (movedCount > 0) {
+        const lastInStart = await tx.task.findFirst({
+          where: { columnId: startCol.id, archivedAt: null },
+          orderBy: { position: "desc" },
+          select: { position: true },
+        });
+        let nextPos = (lastInStart?.position ?? 0) + POSITION_GAP;
+        const tasks = await tx.task.findMany({
+          where: { columnId },
+          orderBy: { position: "asc" },
+          select: { id: true },
+        });
+        for (const task of tasks) {
+          await tx.task.update({
+            where: { id: task.id },
+            data: {
+              columnId: startCol.id,
+              position: nextPos,
+              completedAt: null,
+            },
+          });
+          nextPos += POSITION_GAP;
+        }
+      }
+
+      await tx.boardColumn.delete({ where: { id: columnId } });
+    });
 
     await prisma.activity.create({
       data: {
@@ -298,7 +333,11 @@ export const columnService = {
         action: "column.deleted",
         entityType: "BoardColumn",
         entityId: columnId,
-        metadata: JSON.stringify({ name: existing.name }),
+        metadata: JSON.stringify({
+          name: existing.name,
+          movedTo: startCol.name,
+          movedCount,
+        }),
       },
     });
   },

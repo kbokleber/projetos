@@ -150,10 +150,12 @@ export function BoardColumnMenu({
   projectId,
   columnId,
   columnName,
+  taskCount = 0,
 }: {
   projectId: string;
   columnId: string;
   columnName: string;
+  taskCount?: number;
 }) {
   const router = useRouter();
   const fixed = isFixedSystemColumnName(columnName);
@@ -252,12 +254,25 @@ export function BoardColumnMenu({
         }}
         title="Excluir etapa?"
         description={
-          <>
-            Excluir a etapa <strong>{columnName}</strong>? Só é possível se não
-            houver tarefas nela.
-          </>
+          taskCount > 0 ? (
+            <>
+              Excluir a etapa <strong>{columnName}</strong>? As{" "}
+              <strong>
+                {taskCount}{" "}
+                {taskCount === 1 ? "tarefa" : "tarefas"}
+              </strong>{" "}
+              serão movidas para <strong>A Fazer</strong>.
+            </>
+          ) : (
+            <>
+              Excluir a etapa <strong>{columnName}</strong>? Esta ação não pode
+              ser desfeita.
+            </>
+          )
         }
-        confirmLabel="Sim, excluir"
+        confirmLabel={
+          taskCount > 0 ? "Mover para A Fazer e excluir" : "Sim, excluir"
+        }
         pending={pending}
         pendingLabel="Excluindo…"
         onConfirm={() => {
