@@ -14,15 +14,14 @@ import {
   deleteLocalFile,
   saveProjectLogoFile,
 } from "@/lib/storage";
+import { DEFAULT_BOARD_COLUMNS } from "@/lib/constants";
 import type { Project, ProjectStatus } from "@/generated/prisma/client";
 
-const DEFAULT_COLUMNS = [
-  { name: "Backlog", color: "#94a3b8", position: 1000 },
-  { name: "A Fazer", color: "#60a5fa", position: 2000 },
-  { name: "Em Andamento", color: "#fbbf24", position: 3000 },
-  { name: "Em Revisão", color: "#a78bfa", position: 4000 },
-  { name: "Concluído", color: "#34d399", position: 5000 },
-];
+const DEFAULT_COLUMNS = DEFAULT_BOARD_COLUMNS.map((c) => ({
+  name: c.name,
+  color: c.color,
+  position: c.position,
+}));
 
 export type CreateProjectInput = {
   workspaceId: string;
