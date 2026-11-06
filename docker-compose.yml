@@ -1,4 +1,5 @@
-# App + Postgres no mesmo stack (Coolify Docker Compose).
+# App (Coolify Docker Compose). O Postgres NÃO fica neste stack: usa o banco
+# separado do Coolify (projeto "Sistema de Projetos" > sistema-projetos-prod-db).
 #
 # Coolify:
 #   - Build Pack: Docker Compose
@@ -6,54 +7,27 @@
 #   - Porta do domínio: 3000
 #
 # Variáveis:
-#   DATABASE_URL=postgresql://projetos:projetos@postgres:5432/sistema_projetos
+#   DATABASE_URL=<Postgres URL (internal) do sistema-projetos-prod-db>
 #   AUTH_SECRET=...
 #   NEXTAUTH_URL=https://projetos.kbosolucoes.com.br
 #   API_ALLOWED_ORIGINS=https://projetos.kbosolucoes.com.br
 #
 # Dev local (Next no host acessando Postgres):
-#   docker compose -f docker-compose.yml -f docker-compose.local.yml up postgres -d
+#   docker compose -f docker-compose.local.yml up -d
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    hostname: postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: projetos
-      POSTGRES_PASSWORD: projetos
-      POSTGRES_DB: sistema_projetos
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    # NÃO publique 5432 no host em produção — conflita com outros Postgres na VPS.
-    # O app acessa via rede interna: postgres:5432
-    expose:
-      - "5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-    networks:
-      default:
-        aliases:
-          - postgres
-
   app:
     build:
       context: .
       dockerfile: Dockerfile
     hostname: app
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      DATABASE_URL: ${DATABASE_URL:-postgresql://projetos:projetos@postgres:5432/sistema_projetos}
+      # Postgres separado no Coolify (recurso "sistema-projetos-prod-db"), com backup no R2.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       AUTH_SECRET: ${AUTH_SECRET:-change-me-in-coolify-use-openssl-rand}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000}
@@ -80,5 +54,4 @@ services:
       - default
 
 volumes:
-  postgres-data:
   uploads-data:
