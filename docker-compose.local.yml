@@ -1,9 +1,26 @@
-# Override só para desenvolvimento local (Next rodando no host).
-# Uso: docker compose -f docker-compose.yml -f docker-compose.local.yml up postgres -d
+# Só para desenvolvimento local (Next rodando no host acessando este Postgres).
+# Uso: docker compose -f docker-compose.local.yml up -d
+# DATABASE_URL local: postgresql://projetos:projetos@localhost:5432/sistema_projetos
 #
-# Não use este arquivo no Coolify.
+# Não use este arquivo no Coolify (produção usa o Postgres separado do Coolify).
 
 services:
   postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: projetos
+      POSTGRES_PASSWORD: projetos
+      POSTGRES_DB: sistema_projetos
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U projetos -d sistema_projetos"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:

@@ -125,11 +125,9 @@ npx tsx prisma/seed.ts
 ### Dev local com Docker
 
 ```bash
-# Sobe Postgres + app
-docker compose up --build
-
-# Ou só o Postgres (e roda a app com npm run dev)
-docker compose up postgres -d
+# Sobe só o Postgres local (a app roda com npm run dev)
+# Obs.: o docker-compose.yml é o de produção (Coolify) e não inclui Postgres.
+docker compose -f docker-compose.local.yml up -d
 cp .env.example .env
 # ajuste AUTH_SECRET no .env
 npm install
